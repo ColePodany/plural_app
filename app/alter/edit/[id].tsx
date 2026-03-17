@@ -4,11 +4,12 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
+
 import { useSystem } from "../../../contexts/SystemContext";
 
 export default function EditAlterScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { alters, updateAlter } = useSystem();
+const { alters, updateAlter, deleteAlter } = useSystem();
 
   const alter = alters.find((a) => a.id === id);
 
@@ -93,6 +94,18 @@ export default function EditAlterScreen() {
       >
         <Text style={styles.saveButtonText}>Save Changes</Text>
       </Pressable>
+
+      <Pressable
+  style={styles.deleteButton}
+  onPress={async () => {
+    await deleteAlter(alter.id);
+    router.replace("/(tabs)");
+  }}
+>
+  <Text style={styles.deleteText}>Delete Alter</Text>
+</Pressable>
+
+      
     </Screen>
   );
 }
@@ -150,4 +163,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+
+  deleteButton: {
+  marginTop: 12,
+  padding: 14,
+  borderRadius: 12,
+  backgroundColor: "#b00020",
+  alignItems: "center",
+},
+
+deleteText: {
+  color: "white",
+  fontWeight: "600",
+  fontSize: 16,
+},
 });

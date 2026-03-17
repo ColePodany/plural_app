@@ -19,7 +19,8 @@ export type SystemContextType = {
   alters: Alter[];
   currentFrontIds: string[];
   history: FrontSession[];
-  addAlter: (alter: Omit<Alter, "id">) => void;
-  updateAlter: (id: string, updates: Partial<Alter>) => void;
-  toggleFront: (alterId: string) => void;
+  addAlter: (alter: Omit<Alter, "id">) => Promise<void>;
+  updateAlter: (id: string, updates: Partial<Alter>) => Promise<void>;
+  deleteAlter: (id: string) => Promise<void>;
+  toggleFront: (alterId: string) => Promise<void>;
 };
