@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
 import Screen from "@/components/Screen";
-import { useProfile } from "../contexts/ProfileContext";
+import { useProfile } from "../../contexts/ProfileContext";
 
 export default function EditProfileScreen() {
   const { profile, updateProfile } = useProfile();

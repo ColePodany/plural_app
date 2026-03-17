@@ -1,17 +1,17 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
-  FlatList,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    FlatList,
+    Image,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Screen from "@/components/Screen";
-import { useSystem } from "../contexts/SystemContext";
+import { useSystem } from "../../contexts/SystemContext";
 
 export default function HomeScreen() {
   const { alters, currentFrontIds, toggleFront } = useSystem();

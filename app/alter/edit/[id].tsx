@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
 import Screen from "@/components/Screen";
-import { useSystem } from "../../contexts/SystemContext";
+import { useSystem } from "../../../contexts/SystemContext";
 
 export default function EditAlterScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -1,7 +1,7 @@
 import Screen from "@/components/Screen";
 import { router, useLocalSearchParams } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSystem } from "../contexts/SystemContext";
+import { useSystem } from "../../contexts/SystemContext";
 
 export default function AlterDetailScreen() {
   const { id } = useLocalSearchParams();

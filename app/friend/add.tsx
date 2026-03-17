@@ -10,7 +10,7 @@ import {
 } from "react-native";
 
 import Screen from "@/components/Screen";
-import { useFriends } from "../contexts/FriendContext";
+import { useFriends } from "../../contexts/FriendContext";
 
 const mockUsers = [
   { id: "1", username: "kai", displayName: "Kai", avatar: "https://placehold.co/100" },

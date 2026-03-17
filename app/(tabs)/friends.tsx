@@ -5,7 +5,7 @@ import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Screen from "@/components/Screen";
-import { useFriends } from "../contexts/FriendContext";
+import { useFriends } from "../../contexts/FriendContext";
 
 type FriendsTab = "friends" | "outgoing" | "incoming";
 

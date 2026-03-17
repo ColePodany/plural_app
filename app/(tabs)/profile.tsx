@@ -1,8 +1,9 @@
+import { supabase } from "@/lib/supabase";
 import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import Screen from "@/components/Screen";
-import { useProfile } from "../contexts/ProfileContext";
+import { useProfile } from "../../contexts/ProfileContext";
 
 export default function ProfileScreen() {
   const { profile } = useProfile();
@@ -42,7 +43,11 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <Pressable style={styles.logoutButton}>
+      <Pressable style={styles.logoutButton}
+      onPress={async () => {
+        await supabase.auth.signOut();
+        router.replace("/auth");
+      }}>
         <Text style={styles.logoutText}>Log Out</Text>
       </Pressable>
     </Screen>

@@ -5,7 +5,7 @@ import {
     formatDuration,
     formatTime,
     useSystem,
-} from "../contexts/SystemContext";
+} from "../../contexts/SystemContext";
 
 export default function HistoryScreen() {
   const { history, alters } = useSystem();

@@ -2,7 +2,7 @@ import Screen from "@/components/Screen";
 import { router } from "expo-router";
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput } from "react-native";
-import { useSystem } from "../contexts/SystemContext";
+import { useSystem } from "../../contexts/SystemContext";
 
 export default function NewAlterScreen() {
   const { addAlter } = useSystem();
