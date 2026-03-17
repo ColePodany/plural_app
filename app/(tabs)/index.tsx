@@ -1,98 +1,183 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import {
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import Screen from "@/components/Screen";
+import { useSystem } from "../contexts/SystemContext";
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const { alters, currentFrontIds, toggleFront } = useSystem();
+  const insets = useSafeAreaInsets();
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const fronters = alters.filter((alter) => currentFrontIds.includes(alter.id));
+  const nonFronters = alters.filter(
+    (alter) => !currentFrontIds.includes(alter.id)
+  );
+
+  return (
+    <Screen style={styles.screen}>
+      <Pressable
+        style={[styles.addButton, { top: insets.top + 8 }]}
+        onPress={() => router.push("/alter/new")}
+      >
+        <Ionicons name="add" size={20} color="white" />
+      </Pressable>
+
+      <FlatList
+        data={nonFronters}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.container}
+        ListHeaderComponent={
+          <View>
+            <Text style={styles.heading}>Current Fronters</Text>
+
+            {fronters.length === 0 ? (
+              <Text style={styles.emptyText}>No one is fronting.</Text>
+            ) : (
+              fronters.map((alter) => (
+                <View key={alter.id} style={styles.card}>
+                  <Pressable
+                    style={styles.cardMain}
+                    onPress={() => router.push(`/alter/${alter.id}`)}
+                  >
+                    <Image
+                      source={{ uri: alter.avatar || "https://placehold.co/100" }}
+                      style={styles.avatar}
+                    />
+
+                    <View style={styles.cardText}>
+                      <Text style={styles.name}>{alter.name}</Text>
+                      {!!alter.pronouns && (
+                        <Text style={styles.pronouns}>{alter.pronouns}</Text>
+                      )}
+                    </View>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.frontToggle}
+                    onPress={() => toggleFront(alter.id)}
+                  >
+                    <Ionicons name="remove" size={18} color="white" />
+                  </Pressable>
+                </View>
+              ))
+            )}
+
+            <Text style={styles.heading}>All Members</Text>
+          </View>
+        }
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No alters yet. Tap + to add one.</Text>
+        }
+        renderItem={({ item }) => (
+          <View style={styles.card}>
+            <Pressable
+              style={styles.cardMain}
+              onPress={() => router.push(`/alter/${item.id}`)}
+            >
+              <Image
+                source={{ uri: item.avatar || "https://placehold.co/100" }}
+                style={styles.avatar}
+              />
+
+              <View style={styles.cardText}>
+                <Text style={styles.name}>{item.name}</Text>
+                {!!item.pronouns && (
+                  <Text style={styles.pronouns}>{item.pronouns}</Text>
+                )}
+              </View>
+            </Pressable>
+
+            <Pressable
+              style={styles.frontToggle}
+              onPress={() => toggleFront(item.id)}
+            >
+              <Ionicons name="add" size={18} color="white" />
+            </Pressable>
+          </View>
+        )}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  screen: {
+    flex: 1,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  container: {
+    padding: 16,
+    paddingTop: 56,
+    paddingBottom: 32,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  addButton: {
+    position: "absolute",
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#444",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  heading: {
+    fontSize: 22,
+    fontWeight: "700",
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  emptyText: {
+    opacity: 0.7,
+    marginBottom: 16,
+  },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#444",
+    marginBottom: 10,
+  },
+  cardMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#555",
+    marginRight: 14,
+  },
+  cardText: {
+    flex: 1,
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  pronouns: {
+    opacity: 0.7,
+    marginTop: 2,
+  },
+  frontToggle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#444",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
   },
 });
