@@ -21,7 +21,12 @@ export default function AlterDetailScreen() {
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
-        <Image source={{ uri: alter.avatar }} style={styles.avatar} />
+        <Image
+  source={{
+    uri: alter.avatar || "https://placehold.co/100x100/444/FFF/png"
+  }}
+  style={styles.avatar}
+/>
         <Text style={styles.name}>{alter.name}</Text>
         <Text style={styles.pronouns}>{alter.pronouns}</Text>
       </View>

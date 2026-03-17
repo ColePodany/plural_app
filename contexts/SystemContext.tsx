@@ -35,30 +35,39 @@ export function SystemProvider({ children }: { children: ReactNode }) {
   const [currentFrontIds, setCurrentFrontIds] = useState<string[]>([]);
   const [history, setHistory] = useState<FrontSession[]>([]);
 
-  useEffect(() => {
-    loadAlters();
-    loadFrontStatus();
-  }, []);
+useEffect(() => {
+  loadAlters();
+  loadFrontStatus();
+  loadHistory();
+}, []);
 
-  const loadAlters = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+ const loadAlters = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
 
-    if (error) {
-      console.log("LOAD ALTERS ERROR:", error);
-      return;
-    }
+  if (error) {
+    console.log("LOAD ALTERS ERROR:", error);
+    return;
+  }
 
-    if (data) {
-      setAlters(data as Alter[]);
-    }
-  };
+  if (data) {
+    const mapped = data.map((row) => ({
+      id: row.id,
+      name: row.name,
+      pronouns: row.pronouns,
+      avatar: row.icon_url,
+      description: row.description,
+    }));
+
+    setAlters(mapped);
+  }
+};
 
   const addAlter = async (alter: Omit<Alter, "id">) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -139,60 +148,100 @@ export function SystemProvider({ children }: { children: ReactNode }) {
   };
 
   const loadFrontStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
 
-    const { data, error } = await supabase
+  const { data, error } = await supabase
+    .from("front_status")
+    .select("*")
+    .eq("user_id", user.id);
+
+  if (error) {
+    console.log("LOAD FRONT STATUS ERROR:", error);
+    return;
+  }
+
+  if (data) {
+    setCurrentFrontIds(data.map((row) => row.profile_id));
+  }
+};
+
+ const toggleFront = async (alterId: string) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const isFronting = currentFrontIds.includes(alterId);
+  const now = new Date();
+
+  if (isFronting) {
+
+    await supabase
       .from("front_status")
-      .select("*")
+      .delete()
       .eq("user_id", user.id)
-      .maybeSingle();
+      .eq("profile_id", alterId);
 
-    if (error) {
-      console.log("LOAD FRONT STATUS ERROR:", error);
-      return;
-    }
+    await supabase
+      .from("front_history")
+      .update({ end_time: now.toISOString() })
+      .eq("user_id", user.id)
+      .eq("profile_id", alterId)
+      .is("end_time", null);
 
-    if (data) {
-      setCurrentFrontIds([data.profile_id]);
-    }
-  };
+    setCurrentFrontIds((prev) => prev.filter((id) => id !== alterId));
 
-  const toggleFront = async (alterId: string) => {
+    await loadHistory();
+    return;
+  }
 
-    const isFronting = currentFrontIds.includes(alterId);
-    const now = new Date();
+  await supabase
+    .from("front_status")
+    .insert({
+      user_id: user.id,
+      profile_id: alterId,
+      updated_at: now.toISOString(),
+    });
 
-    if (isFronting) {
-      await updateFrontStatus(null);
-      setCurrentFrontIds([]);
+  await supabase
+    .from("front_history")
+    .insert({
+      user_id: user.id,
+      profile_id: alterId,
+      start_time: now.toISOString(),
+    });
 
-      setHistory((oldHistory) =>
-        oldHistory.map((session) => {
-          if (session.alterId === alterId && session.end === null) {
-            return { ...session, end: now.toISOString() };
-          }
-          return session;
-        })
-      );
+  setCurrentFrontIds((prev) => [...prev, alterId]);
 
-      return;
-    }
+  await loadHistory();
+};
 
-    await updateFrontStatus(alterId);
-    setCurrentFrontIds([alterId]);
+const loadHistory = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
 
-    setHistory((oldHistory) => [
-      {
-        id: Date.now().toString(),
-        alterId,
-        start: now.toISOString(),
-        end: null,
-        date: getTodayLabel(),
-      },
-      ...oldHistory,
-    ]);
-  };
+  const { data, error } = await supabase
+    .from("front_history")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("start_time", { ascending: false });
+
+  if (error) {
+    console.log("LOAD HISTORY ERROR:", error);
+    return;
+  }
+
+  if (data) {
+    const mapped = data.map((row) => ({
+      id: row.id,
+      alterId: row.profile_id,
+      start: row.start_time,
+      end: row.end_time,
+      date: new Date(row.start_time).toDateString(),
+    }));
+
+    setHistory(mapped);
+  }
+};
 
   const value = useMemo(
     () => ({

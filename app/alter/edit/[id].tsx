@@ -1,8 +1,9 @@
+import Screen from "@/components/Screen";
+import { pickAndUploadAvatar } from "@/lib/uploadAvatar";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
-import Screen from "@/components/Screen";
 import { useSystem } from "../../../contexts/SystemContext";
 
 export default function EditAlterScreen() {
@@ -25,6 +26,11 @@ export default function EditAlterScreen() {
     }
   }, [alter]);
 
+  const handleAvatarPress = async () => {
+    const url = await pickAndUploadAvatar();
+    if (url) setAvatar(url);
+  };
+
   if (!alter) {
     return (
       <Screen style={styles.screen}>
@@ -37,10 +43,18 @@ export default function EditAlterScreen() {
     <Screen style={styles.screen}>
       <Text style={styles.title}>Edit Alter</Text>
 
-      <Image
-        source={{ uri: avatar || "https://placehold.co/100" }}
-        style={styles.avatar}
-      />
+      {/* Clickable Avatar */}
+      <Pressable onPress={handleAvatarPress}>
+       <Image
+  key={avatar}
+  source={{
+    uri: avatar || "https://placehold.co/100x100",
+  }}
+  style={styles.avatar}
+/>
+      </Pressable>
+
+      <Text style={styles.avatarHint}>Tap avatar to change</Text>
 
       <TextInput
         style={styles.input}
@@ -54,14 +68,6 @@ export default function EditAlterScreen() {
         placeholder="Pronouns"
         value={pronouns}
         onChangeText={setPronouns}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Avatar URL"
-        value={avatar}
-        onChangeText={setAvatar}
-        autoCapitalize="none"
       />
 
       <TextInput
@@ -96,19 +102,28 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+
   title: {
     fontSize: 28,
     fontWeight: "700",
     marginBottom: 20,
   },
+
   avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     backgroundColor: "#555",
     alignSelf: "center",
+    marginBottom: 8,
+  },
+
+  avatarHint: {
+    textAlign: "center",
+    opacity: 0.6,
     marginBottom: 20,
   },
+
   input: {
     borderWidth: 1,
     borderColor: "#444",
@@ -116,10 +131,12 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 14,
   },
+
   multiline: {
     minHeight: 100,
     textAlignVertical: "top",
   },
+
   saveButton: {
     marginTop: 8,
     backgroundColor: "#444",
@@ -127,6 +144,7 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: "center",
   },
+
   saveButtonText: {
     color: "white",
     fontSize: 16,

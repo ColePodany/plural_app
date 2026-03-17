@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
-    FlatList,
-    Image,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
+  FlatList,
+  Image,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -17,7 +18,10 @@ export default function HomeScreen() {
   const { alters, currentFrontIds, toggleFront } = useSystem();
   const insets = useSafeAreaInsets();
 
-  const fronters = alters.filter((alter) => currentFrontIds.includes(alter.id));
+  const fronters = alters.filter((alter) =>
+    currentFrontIds.includes(alter.id)
+  );
+
   const nonFronters = alters.filter(
     (alter) => !currentFrontIds.includes(alter.id)
   );
@@ -35,6 +39,9 @@ export default function HomeScreen() {
         data={nonFronters}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl refreshing={false} onRefresh={() => {}} />
+        }
         ListHeaderComponent={
           <View>
             <Text style={styles.heading}>Current Fronters</Text>
@@ -49,20 +56,26 @@ export default function HomeScreen() {
                     onPress={() => router.push(`/alter/${alter.id}`)}
                   >
                     <Image
-                      source={{ uri: alter.avatar || "https://placehold.co/100" }}
+                      source={{
+                        uri:
+                          alter.avatar ||
+                          "https://placehold.co/100x100/444/FFF/png",
+                      }}
                       style={styles.avatar}
                     />
 
                     <View style={styles.cardText}>
                       <Text style={styles.name}>{alter.name}</Text>
                       {!!alter.pronouns && (
-                        <Text style={styles.pronouns}>{alter.pronouns}</Text>
+                        <Text style={styles.pronouns}>
+                          {alter.pronouns}
+                        </Text>
                       )}
                     </View>
                   </Pressable>
 
                   <Pressable
-                    style={styles.frontToggle}
+                    style={[styles.frontToggle, styles.frontActive]}
                     onPress={() => toggleFront(alter.id)}
                   >
                     <Ionicons name="remove" size={18} color="white" />
@@ -75,7 +88,9 @@ export default function HomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No alters yet. Tap + to add one.</Text>
+          <Text style={styles.emptyText}>
+            No alters yet. Tap + to add one.
+          </Text>
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
@@ -84,7 +99,11 @@ export default function HomeScreen() {
               onPress={() => router.push(`/alter/${item.id}`)}
             >
               <Image
-                source={{ uri: item.avatar || "https://placehold.co/100" }}
+                source={{
+                  uri:
+                    item.avatar ||
+                    "https://placehold.co/100x100/444/FFF/png",
+                }}
                 style={styles.avatar}
               />
 
@@ -113,11 +132,13 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+
   container: {
     padding: 16,
     paddingTop: 56,
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
+
   addButton: {
     position: "absolute",
     right: 12,
@@ -129,55 +150,70 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     zIndex: 10,
   },
+
   heading: {
     fontSize: 22,
     fontWeight: "700",
     marginTop: 8,
-    marginBottom: 12,
+    marginBottom: 14,
   },
+
   emptyText: {
-    opacity: 0.7,
+    opacity: 0.6,
     marginBottom: 16,
   },
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#444",
-    marginBottom: 10,
-  },
+
+ card: {
+  flexDirection: "row",
+  alignItems: "center",
+  padding: 14,
+  borderRadius: 14,
+  borderWidth: 1,
+  borderColor: "#444",
+  marginBottom: 12,
+},
+
   cardMain: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
   },
+
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
     backgroundColor: "#555",
     marginRight: 14,
+    borderWidth: 1,
+    borderColor: "#666",
   },
+
   cardText: {
     flex: 1,
   },
+
   name: {
     fontSize: 18,
     fontWeight: "600",
   },
+
   pronouns: {
     opacity: 0.7,
     marginTop: 2,
   },
+
   frontToggle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#444",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 12,
+  },
+
+  frontActive: {
+    backgroundColor: "#d14",
   },
 });
