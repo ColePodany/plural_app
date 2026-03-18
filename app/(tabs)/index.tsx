@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -14,16 +15,149 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Screen from "@/components/Screen";
 import { useSystem } from "../../contexts/SystemContext";
 
-export default function HomeScreen() {
-  const { alters, currentFrontIds, toggleFront } = useSystem();
-  const insets = useSafeAreaInsets();
+/* ------------------ TYPES ------------------ */
+type HeaderItem = {
+  type: "header";
+  title: string;
+};
 
-  const fronters = alters.filter((alter) =>
-    currentFrontIds.includes(alter.id)
+type AlterItem = {
+  type: "fronter" | "member";
+  id: string;
+  name: string;
+  pronouns?: string;
+  avatar?: string;
+  description?: string;
+};
+
+type ListItem = HeaderItem | AlterItem;
+
+/* ------------------ MEMO CARD ------------------ */
+const AlterCard = React.memo(
+  ({
+    item,
+    isFronting,
+    onToggle,
+  }: {
+    item: AlterItem;
+    isFronting: boolean;
+    onToggle: () => void;
+  }) => {
+    return (
+      <View style={styles.card}>
+        <Pressable
+          style={styles.cardMain}
+          onPress={() =>
+            router.push({
+              pathname: "/alter/[id]",
+              params: { id: item.id },
+            })
+          }
+        >
+          <Image
+            source={{
+              uri:
+                item.avatar ||
+                "https://placehold.co/100x100/444/FFF/png",
+            }}
+            style={styles.avatar}
+          />
+
+          <View style={styles.cardText}>
+            <Text style={styles.name}>{item.name}</Text>
+            {!!item.pronouns && (
+              <Text style={styles.pronouns}>{item.pronouns}</Text>
+            )}
+          </View>
+        </Pressable>
+
+        <Pressable
+          style={[
+            styles.frontToggle,
+            isFronting && styles.frontActive,
+          ]}
+          onPress={onToggle}
+        >
+          <Ionicons
+            name={isFronting ? "remove" : "add"}
+            size={18}
+            color="white"
+          />
+        </Pressable>
+      </View>
+    );
+  }
+);
+
+/* ------------------ SCREEN ------------------ */
+export default function HomeScreen() {
+  const {
+    alters,
+    currentFrontIds,
+    toggleFront,
+    reloadAlters,
+    reloadFrontStatus,
+  } = useSystem();
+
+  const insets = useSafeAreaInsets();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fronters = useMemo(
+    () => alters.filter((a) => currentFrontIds.includes(String(a.id))),
+    [alters, currentFrontIds]
   );
 
-  const nonFronters = alters.filter(
-    (alter) => !currentFrontIds.includes(alter.id)
+  const nonFronters = useMemo(
+    () => alters.filter((a) => !currentFrontIds.includes(String(a.id))),
+    [alters, currentFrontIds]
+  );
+
+  const combined: ListItem[] = useMemo(() => {
+    return [
+      { type: "header", title: "Current Fronters" },
+      ...fronters.map((a) => ({
+        type: "fronter" as const,
+        id: String(a.id),
+        name: a.name,
+        pronouns: a.pronouns,
+        avatar: a.avatar,
+        description: a.description,
+      })),
+      { type: "header", title: "All Members" },
+      ...nonFronters.map((a) => ({
+        type: "member" as const,
+        id: String(a.id),
+        name: a.name,
+        pronouns: a.pronouns,
+        avatar: a.avatar,
+        description: a.description,
+      })),
+    ];
+  }, [fronters, nonFronters]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([reloadAlters(), reloadFrontStatus()]);
+    setRefreshing(false);
+  };
+
+  const renderItem = useCallback(
+    ({ item }: { item: ListItem }) => {
+      if (item.type === "header") {
+        return <Text style={styles.heading}>{item.title}</Text>;
+      }
+
+      const isFronting = currentFrontIds.includes(item.id);
+
+      return (
+        <AlterCard
+          item={item}
+          isFronting={isFronting}
+          onToggle={() => toggleFront(item.id)}
+        />
+      );
+    },
+    [currentFrontIds, toggleFront]
   );
 
   return (
@@ -36,98 +170,25 @@ export default function HomeScreen() {
       </Pressable>
 
       <FlatList
-        data={nonFronters}
-        keyExtractor={(item) => item.id}
+        data={combined}
+        keyExtractor={(item, index) =>
+          item.type === "header" ? `header-${index}` : item.id
+        }
+        renderItem={renderItem}
         contentContainerStyle={styles.container}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={() => {}} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
-        ListHeaderComponent={
-          <View>
-            <Text style={styles.heading}>Current Fronters</Text>
-
-            {fronters.length === 0 ? (
-              <Text style={styles.emptyText}>No one is fronting.</Text>
-            ) : (
-              fronters.map((alter) => (
-                <View key={alter.id} style={styles.card}>
-                  <Pressable
-                    style={styles.cardMain}
-                    onPress={() => router.push(`/alter/${alter.id}`)}
-                  >
-                    <Image
-                      source={{
-                        uri:
-                          alter.avatar ||
-                          "https://placehold.co/100x100/444/FFF/png",
-                      }}
-                      style={styles.avatar}
-                    />
-
-                    <View style={styles.cardText}>
-                      <Text style={styles.name}>{alter.name}</Text>
-                      {!!alter.pronouns && (
-                        <Text style={styles.pronouns}>
-                          {alter.pronouns}
-                        </Text>
-                      )}
-                    </View>
-                  </Pressable>
-
-                  <Pressable
-                    style={[styles.frontToggle, styles.frontActive]}
-                    onPress={() => toggleFront(alter.id)}
-                  >
-                    <Ionicons name="remove" size={18} color="white" />
-                  </Pressable>
-                </View>
-              ))
-            )}
-
-            <Text style={styles.heading}>All Members</Text>
-          </View>
-        }
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            No alters yet. Tap + to add one.
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Pressable
-              style={styles.cardMain}
-              onPress={() => router.push(`/alter/${item.id}`)}
-            >
-              <Image
-                source={{
-                  uri:
-                    item.avatar ||
-                    "https://placehold.co/100x100/444/FFF/png",
-                }}
-                style={styles.avatar}
-              />
-
-              <View style={styles.cardText}>
-                <Text style={styles.name}>{item.name}</Text>
-                {!!item.pronouns && (
-                  <Text style={styles.pronouns}>{item.pronouns}</Text>
-                )}
-              </View>
-            </Pressable>
-
-            <Pressable
-              style={styles.frontToggle}
-              onPress={() => toggleFront(item.id)}
-            >
-              <Ionicons name="add" size={18} color="white" />
-            </Pressable>
-          </View>
-        )}
+        initialNumToRender={8}
+        windowSize={5}
+        maxToRenderPerBatch={10}
+        removeClippedSubviews
       />
     </Screen>
   );
 }
 
+/* ------------------ STYLES ------------------ */
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -158,20 +219,15 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
 
-  emptyText: {
-    opacity: 0.6,
-    marginBottom: 16,
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#444",
+    marginBottom: 12,
   },
-
- card: {
-  flexDirection: "row",
-  alignItems: "center",
-  padding: 14,
-  borderRadius: 14,
-  borderWidth: 1,
-  borderColor: "#444",
-  marginBottom: 12,
-},
 
   cardMain: {
     flex: 1,

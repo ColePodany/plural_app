@@ -1,5 +1,13 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthContext";
 
 type Profile = {
   displayName: string;
@@ -8,7 +16,8 @@ type Profile = {
 };
 
 type ProfileContextType = {
-  profile: Profile;
+  profile: Profile | null;
+  loading: boolean;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
   loadProfile: () => Promise<void>;
 };
@@ -22,11 +31,21 @@ const initialProfile: Profile = {
 };
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<Profile>(initialProfile);
+  const { session, loading: authLoading } = useAuth();
+
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const loadProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const user = session?.user;
+
+    if (!user) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
 
     const { data, error } = await supabase
       .from("users_public")
@@ -36,54 +55,67 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
     if (error) {
       console.log("LOAD PROFILE ERROR:", error);
+      setLoading(false);
       return;
     }
 
-    // 🔥 If profile doesn't exist → create it
     if (!data) {
       const baseUsername = user.email?.split("@")[0] ?? "user";
       const uniqueUsername = `${baseUsername}_${user.id.slice(0, 6)}`;
 
-      const { error: insertError } = await supabase
-        .from("users_public")
-        .insert({
-          user_id: user.id,
-          username: uniqueUsername,
-          display_name: "",
-          avatar_url: "",
-        });
+      const { error: insertError } = await supabase.from("users_public").insert({
+        user_id: user.id,
+        username: uniqueUsername,
+        display_name: "",
+        avatar_url: "",
+      });
 
       if (insertError) {
         console.log("CREATE PROFILE ERROR:", insertError);
+        setLoading(false);
         return;
       }
 
-      return loadProfile(); // reload after create
+      const createdProfile: Profile = {
+        displayName: "",
+        username: uniqueUsername,
+        avatar: "",
+      };
+
+      setProfile(createdProfile);
+      setLoading(false);
+      return;
     }
 
-    // 🔥 Fix missing username (OLD USERS)
+    let finalUsername = data.username ?? "";
+
     if (!data.username) {
       const baseUsername = user.email?.split("@")[0] ?? "user";
       const uniqueUsername = `${baseUsername}_${user.id.slice(0, 6)}`;
 
-      await supabase
+      const { error: usernameUpdateError } = await supabase
         .from("users_public")
         .update({ username: uniqueUsername })
         .eq("user_id", user.id);
 
-      data.username = uniqueUsername;
+      if (usernameUpdateError) {
+        console.log("FIX USERNAME ERROR:", usernameUpdateError);
+      } else {
+        finalUsername = uniqueUsername;
+      }
     }
 
-    // ✅ Set profile
     setProfile({
       displayName: data.display_name ?? "",
-      username: data.username ?? "",
+      username: finalUsername,
       avatar: data.avatar_url ?? "",
     });
+
+    setLoading(false);
   };
 
   const updateProfile = async (updates: Partial<Profile>) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = session?.user;
     if (!user) return;
 
     const { error } = await supabase
@@ -101,22 +133,31 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
 
     setProfile((prev) => ({
-      ...prev,
+      ...(prev ?? initialProfile),
       ...updates,
     }));
   };
 
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!session?.user) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
     loadProfile();
-  }, []);
+  }, [session, authLoading]);
 
   const value = useMemo(
     () => ({
       profile,
+      loading,
       updateProfile,
       loadProfile,
     }),
-    [profile]
+    [profile, loading]
   );
 
   return (

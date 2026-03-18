@@ -9,6 +9,8 @@ export type Alter = {
 export type FrontSession = {
   id: string;
   alterId: string;
+  name?: string;
+  avatar?: string | null;
   start: string;
   end: string | null;
   date: string;
@@ -22,5 +24,11 @@ export type SystemContextType = {
   addAlter: (alter: Omit<Alter, "id">) => Promise<void>;
   updateAlter: (id: string, updates: Partial<Alter>) => Promise<void>;
   deleteAlter: (id: string) => Promise<void>;
-  toggleFront: (alterId: string) => Promise<void>;
+toggleFront: (id: string) => void;
+  updateFrontStatus: (profileId: string | null) => Promise<void>;
+  reloadAlters: () => Promise<void>;
+  reloadHistory: () => Promise<void>;
+  reloadFrontStatus: () => Promise<void>;
+addToFront: (alterId: string) => Promise<void>;
+removeFromFront: (alterId: string) => Promise<void>;
 };

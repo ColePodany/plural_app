@@ -23,8 +23,7 @@ export default function FriendSystemScreen() {
   const friendId = Array.isArray(id) ? id[0] : id;
 
   const [friend, setFriend] = useState<FriendProfile | null>(null);
-  const [frontName, setFrontName] = useState<string | null>(null);
-  const [frontProfileId, setFrontProfileId] = useState<string | null>(null);
+  const [frontIds, setFrontIds] = useState<string[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,6 +36,7 @@ export default function FriendSystemScreen() {
 
       setLoading(true);
 
+      // 🔹 Friend profile
       const { data: userData, error: userError } = await supabase
         .from("users_public")
         .select("user_id, display_name, username, avatar_url")
@@ -47,30 +47,21 @@ export default function FriendSystemScreen() {
         console.log("FRIEND PROFILE ERROR:", userError);
       }
 
+      // 🔹 Front status (MULTIPLE)
       const { data: frontData, error: frontError } = await supabase
         .from("front_status")
-        .select(
-          `
-          user_id,
-          profile_id,
-          profiles (
-            id,
-            name,
-            icon_url
-          )
-        `
-        )
-        .eq("user_id", friendId)
-        .maybeSingle();
+        .select("profile_id")
+        .eq("user_id", friendId);
 
       if (frontError) {
         console.log("FRONT STATUS ERROR:", frontError);
       }
 
-      const frontProfile = Array.isArray(frontData?.profiles)
-        ? frontData.profiles[0]
-        : frontData?.profiles;
+      const ids = (frontData || []).map((row: any) =>
+        String(row.profile_id)
+      );
 
+      // 🔹 Members
       const { data: memberData, error: memberError } = await supabase
         .from("profiles")
         .select("id, name, pronouns, icon_url")
@@ -81,8 +72,7 @@ export default function FriendSystemScreen() {
       }
 
       setFriend(userData ?? null);
-      setFrontName(frontProfile?.name ?? null);
-      setFrontProfileId(frontData?.profile_id ? String(frontData.profile_id) : null);
+      setFrontIds(ids);
       setMembers((memberData as Member[]) ?? []);
       setLoading(false);
     };
@@ -90,15 +80,18 @@ export default function FriendSystemScreen() {
     loadFriendSystem();
   }, [friendId]);
 
+  // 🔹 Split members
   const frontingMembers = useMemo(() => {
-    if (!frontProfileId) return [];
-    return members.filter((member) => String(member.id) === frontProfileId);
-  }, [members, frontProfileId]);
+    return members.filter((member) =>
+      frontIds.includes(String(member.id))
+    );
+  }, [members, frontIds]);
 
   const otherMembers = useMemo(() => {
-    if (!frontProfileId) return members;
-    return members.filter((member) => String(member.id) !== frontProfileId);
-  }, [members, frontProfileId]);
+    return members.filter(
+      (member) => !frontIds.includes(String(member.id))
+    );
+  }, [members, frontIds]);
 
   if (loading) {
     return (
@@ -130,28 +123,44 @@ export default function FriendSystemScreen() {
           <>
             <View style={styles.header}>
               <Image
-                source={{ uri: friend.avatar_url || "https://placehold.co/100" }}
+                source={{
+                  uri: friend.avatar_url || "https://placehold.co/100",
+                }}
                 style={styles.avatar}
               />
-              <Text style={styles.name}>{friend.display_name || "No name"}</Text>
+              <Text style={styles.name}>
+                {friend.display_name || "No name"}
+              </Text>
               <Text style={styles.username}>@{friend.username}</Text>
+
               <Text style={styles.subtext}>
-                Front: {frontName ?? "No fronter set"}
+                Front:{" "}
+                {frontingMembers.length > 0
+                  ? frontingMembers.map((m) => m.name).join(", ")
+                  : "No fronters"}
               </Text>
             </View>
 
             {frontingMembers.length > 0 && (
               <>
-                <Text style={styles.sectionTitle}>Currently Fronting</Text>
+                <Text style={styles.sectionTitle}>
+                  Currently Fronting
+                </Text>
                 {frontingMembers.map((item) => (
                   <View key={item.id} style={styles.card}>
                     <View style={styles.memberRow}>
                       <Image
-                        source={{ uri: item.icon_url || "https://placehold.co/100" }}
+                        source={{
+                          uri:
+                            item.icon_url ||
+                            "https://placehold.co/100",
+                        }}
                         style={styles.memberAvatar}
                       />
                       <View>
-                        <Text style={styles.memberName}>{item.name}</Text>
+                        <Text style={styles.memberName}>
+                          {item.name}
+                        </Text>
                         <Text style={styles.memberPronouns}>
                           {item.pronouns || "No pronouns"}
                         </Text>
@@ -176,7 +185,9 @@ export default function FriendSystemScreen() {
           <View style={styles.card}>
             <View style={styles.memberRow}>
               <Image
-                source={{ uri: item.icon_url || "https://placehold.co/100" }}
+                source={{
+                  uri: item.icon_url || "https://placehold.co/100",
+                }}
                 style={styles.memberAvatar}
               />
               <View>

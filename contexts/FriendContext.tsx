@@ -1,5 +1,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./AuthContext";
+
+/* ------------------ TYPES ------------------ */
 
 type Friend = {
   friend_id: string;
@@ -8,11 +11,12 @@ type Friend = {
     username: string;
     avatar_url: string | null;
   } | null;
-  current_front: {
+
+  current_fronts: {
     id: string;
     name: string;
     icon_url: string | null;
-  } | null;
+  }[];
 };
 
 type FriendRequest = {
@@ -30,22 +34,29 @@ type FriendContextType = {
   reloadRequests: () => Promise<void>;
 };
 
+/* ------------------ CONTEXT ------------------ */
+
 const FriendContext = createContext<FriendContextType | undefined>(undefined);
 
+/* ------------------ PROVIDER ------------------ */
+
 export function FriendProvider({ children }: { children: React.ReactNode }) {
+  const { session, loading } = useAuth();
+
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
 
+  /* ------------------ LOAD FRIENDS ------------------ */
+
   const loadFriends = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = session?.user;
 
     if (!user) {
       setFriends([]);
       return;
     }
 
+    // 🔹 base friend info
     const { data, error } = await supabase
       .from("friendships")
       .select(
@@ -67,22 +78,17 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
 
     const baseFriends = (data || []).map((item: any) => ({
       friend_id: item.friend_id as string,
-      users_public: item.users_public
-        ? {
-            display_name: item.users_public.display_name,
-            username: item.users_public.username,
-            avatar_url: item.users_public.avatar_url,
-          }
-        : null,
+      users_public: item.users_public ?? null,
     }));
 
-    const friendIds = baseFriends.map((friend) => friend.friend_id);
+    const friendIds = baseFriends.map((f) => f.friend_id);
 
     if (friendIds.length === 0) {
       setFriends([]);
       return;
     }
 
+    // 🔥 get ALL front rows
     const { data: fronts, error: frontsError } = await supabase
       .from("front_status")
       .select(
@@ -102,34 +108,41 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
       console.log("LOAD FRIEND FRONTS ERROR:", frontsError);
     }
 
-    const formatted: Friend[] = baseFriends.map((friend) => {
-      const front =
-        fronts?.find((item: any) => item.user_id === friend.friend_id) ?? null;
+    // 🔥 group by user_id
+    const frontMap: Record<string, any[]> = {};
 
-      const profile = Array.isArray(front?.profiles)
-        ? front.profiles[0]
-        : front?.profiles;
+    (fronts || []).forEach((row: any) => {
+      if (!frontMap[row.user_id]) {
+        frontMap[row.user_id] = [];
+      }
 
-      return {
-        friend_id: friend.friend_id,
-        users_public: friend.users_public,
-        current_front: profile
-          ? {
-              id: String(profile.id),
-              name: profile.name,
-              icon_url: profile.icon_url,
-            }
-          : null,
-      };
+      const profile = Array.isArray(row.profiles)
+        ? row.profiles[0]
+        : row.profiles;
+
+      if (profile) {
+        frontMap[row.user_id].push({
+          id: String(profile.id),
+          name: profile.name,
+          icon_url: profile.icon_url,
+        });
+      }
     });
+
+    // 🔥 attach to friends
+    const formatted: Friend[] = baseFriends.map((friend) => ({
+      friend_id: friend.friend_id,
+      users_public: friend.users_public,
+      current_fronts: frontMap[friend.friend_id] || [],
+    }));
 
     setFriends(formatted);
   };
 
+  /* ------------------ LOAD REQUESTS ------------------ */
+
   const loadRequests = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = session?.user;
 
     if (!user) {
       setRequests([]);
@@ -150,11 +163,10 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
     setRequests((data || []) as FriendRequest[]);
   };
 
-  const sendRequest = async (username: string) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  /* ------------------ SEND REQUEST ------------------ */
 
+  const sendRequest = async (username: string) => {
+    const user = session?.user;
     if (!user) return false;
 
     const { data: target, error: targetError } = await supabase
@@ -194,11 +206,10 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const acceptRequest = async (requestId: string) => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  /* ------------------ ACCEPT REQUEST ------------------ */
 
+  const acceptRequest = async (requestId: string) => {
+    const user = session?.user;
     if (!user) return;
 
     const request = requests.find((r) => r.id === requestId);
@@ -228,10 +239,22 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
     await loadRequests();
   };
 
+  /* ------------------ EFFECT ------------------ */
+
   useEffect(() => {
+    if (loading) return;
+
+    if (!session?.user) {
+      setFriends([]);
+      setRequests([]);
+      return;
+    }
+
     loadFriends();
     loadRequests();
-  }, []);
+  }, [session, loading]);
+
+  /* ------------------ PROVIDER ------------------ */
 
   return (
     <FriendContext.Provider
@@ -248,6 +271,8 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
     </FriendContext.Provider>
   );
 }
+
+/* ------------------ HOOK ------------------ */
 
 export const useFriends = () => {
   const context = useContext(FriendContext);

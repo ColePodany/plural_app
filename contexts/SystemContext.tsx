@@ -1,13 +1,16 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { supabase } from "../lib/supabase";
 import { Alter, FrontSession, SystemContextType } from "../types/system";
 import { useAuth } from "./AuthContext";
 
 const SystemContext = createContext<SystemContextType | undefined>(undefined);
-
-function getTodayLabel() {
-  return "Today";
-}
 
 export function formatTime(dateString: string) {
   return new Date(dateString).toLocaleTimeString([], {
@@ -31,63 +34,58 @@ export function formatDuration(start: string, end: string) {
 }
 
 export function SystemProvider({ children }: { children: ReactNode }) {
+  const { session, loading } = useAuth();
 
-  const { session } = useAuth();
   const [alters, setAlters] = useState<Alter[]>([]);
   const [currentFrontIds, setCurrentFrontIds] = useState<string[]>([]);
   const [history, setHistory] = useState<FrontSession[]>([]);
 
-useEffect(() => {
-  if (!session?.user) return;
+  const loadAlters = async () => {
+    const user = session?.user;
+    if (!user) {
+      setAlters([]);
+      return;
+    }
 
-  loadAlters();
-  loadFrontStatus();
-  loadHistory();
-}, [session]);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
- const loadAlters = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+    if (error) {
+      console.log("LOAD ALTERS ERROR:", error);
+      return;
+    }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+    if (data) {
+      const mapped: Alter[] = data.map((row: any) => ({
+        id: String(row.id),
+        name: row.name,
+        pronouns: row.pronouns,
+        avatar: row.icon_url,
+        description: row.description,
+      }));
 
-  if (error) {
-    console.log("LOAD ALTERS ERROR:", error);
-    return;
-  }
-
-  if (data) {
-    const mapped = data.map((row) => ({
-      id: row.id,
-      name: row.name,
-      pronouns: row.pronouns,
-      avatar: row.icon_url,
-      description: row.description,
-    }));
-
-    setAlters(mapped);
-  }
-};
+      setAlters(mapped);
+    } else {
+      setAlters([]);
+    }
+  };
 
   const addAlter = async (alter: Omit<Alter, "id">) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = session?.user;
     if (!user) return;
 
-    const { error } = await supabase
-      .from("profiles")
-      .insert([
-        {
-          user_id: user.id,
-          name: alter.name,
-          pronouns: alter.pronouns,
-          icon_url: alter.avatar,
-          description: alter.description,
-        },
-      ]);
+    const { error } = await supabase.from("profiles").insert([
+      {
+        user_id: user.id,
+        name: alter.name,
+        pronouns: alter.pronouns,
+        icon_url: alter.avatar,
+        description: alter.description,
+      },
+    ]);
 
     if (error) {
       console.log("ADD ALTER ERROR:", error);
@@ -98,6 +96,9 @@ useEffect(() => {
   };
 
   const updateAlter = async (id: string, updates: Partial<Alter>) => {
+    const user = session?.user;
+    if (!user) return;
+
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -106,7 +107,8 @@ useEffect(() => {
         icon_url: updates.avatar,
         description: updates.description,
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     if (error) {
       console.log("UPDATE ALTER ERROR:", error);
@@ -114,13 +116,18 @@ useEffect(() => {
     }
 
     await loadAlters();
+    await loadHistory();
   };
 
   const deleteAlter = async (id: string) => {
+    const user = session?.user;
+    if (!user) return;
+
     const { error } = await supabase
       .from("profiles")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", user.id);
 
     if (error) {
       console.log("DELETE ALTER ERROR:", error);
@@ -128,36 +135,53 @@ useEffect(() => {
     }
 
     await loadAlters();
+    await loadFrontStatus();
+    await loadHistory();
   };
 
   const updateFrontStatus = async (profileId: string | null) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = session?.user;
     if (!user) return;
 
     if (profileId === null) {
-      await supabase
+      const { error } = await supabase
         .from("front_status")
         .delete()
         .eq("user_id", user.id);
+
+      if (error) {
+        console.log("CLEAR FRONT STATUS ERROR:", error);
+        return;
+      }
+
+      setCurrentFrontIds([]);
       return;
     }
 
-    await supabase
-      .from("front_status")
-      .upsert({
-        user_id: user.id,
-        profile_id: profileId,
-        updated_at: new Date().toISOString(),
-      });
+    const { error } = await supabase.from("front_status").upsert({
+      user_id: user.id,
+      profile_id: profileId,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.log("UPDATE FRONT STATUS ERROR:", error);
+      return;
+    }
+
+    await loadFrontStatus();
   };
 
   const loadFrontStatus = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const user = session?.user;
+  if (!user) {
+    setCurrentFrontIds([]);
+    return;
+  }
 
   const { data, error } = await supabase
     .from("front_status")
-    .select("*")
+    .select("profile_id")
     .eq("user_id", user.id);
 
   if (error) {
@@ -165,100 +189,230 @@ useEffect(() => {
     return;
   }
 
-  if (data) {
-    setCurrentFrontIds(data.map((row) => row.profile_id));
-  }
+  const incoming = (data || []).map((row: any) =>
+    String(row.profile_id)
+  );
+
+  setCurrentFrontIds((prev) => {
+    // 🔥 DO NOT overwrite if identical
+    const same =
+      prev.length === incoming.length &&
+      prev.every((id) => incoming.includes(id));
+
+    return same ? prev : incoming;
+  });
 };
 
- const toggleFront = async (alterId: string) => {
-  const { data: { user } } = await supabase.auth.getUser();
+const addToFront = async (alterId: string) => {
+  const user = session?.user;
   if (!user) return;
 
-  const isFronting = currentFrontIds.includes(alterId);
-  const now = new Date();
+  const now = new Date().toISOString();
 
-  if (isFronting) {
-
-    await supabase
-      .from("front_status")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("profile_id", alterId);
-
-    await supabase
-      .from("front_history")
-      .update({ end_time: now.toISOString() })
-      .eq("user_id", user.id)
-      .eq("profile_id", alterId)
-      .is("end_time", null);
-
-    setCurrentFrontIds((prev) => prev.filter((id) => id !== alterId));
-
-    await loadHistory();
-    return;
-  }
-
-  await supabase
+  const { error } = await supabase
     .from("front_status")
-    .insert({
-      user_id: user.id,
-      profile_id: alterId,
-      updated_at: now.toISOString(),
-    });
-
-  await supabase
-    .from("front_history")
-    .insert({
-      user_id: user.id,
-      profile_id: alterId,
-      start_time: now.toISOString(),
-    });
-
-  setCurrentFrontIds((prev) => [...prev, alterId]);
-
-  await loadHistory();
-};
-
-const loadHistory = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-
-  const { data, error } = await supabase
-    .from("front_history")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("start_time", { ascending: false });
+    .upsert(
+      {
+        user_id: user.id,
+        profile_id: alterId,
+        updated_at: now,
+      },
+      { onConflict: "user_id,profile_id" }
+    );
 
   if (error) {
-    console.log("LOAD HISTORY ERROR:", error);
+    console.log("ADD TO FRONT ERROR:", error);
     return;
   }
 
-  if (data) {
-    const mapped = data.map((row) => ({
-      id: row.id,
-      alterId: row.profile_id,
-      start: row.start_time,
-      end: row.end_time,
-      date: new Date(row.start_time).toDateString(),
-    }));
+  setCurrentFrontIds((prev) =>
+    prev.includes(alterId) ? prev : [...prev, alterId]
+  );
 
-    setHistory(mapped);
+  const { error: historyError } = await supabase
+    .from("front_history")
+    .insert({
+      user_id: user.id,
+      profile_id: alterId,
+      start_time: now,
+    });
+
+  if (historyError) {
+    console.log("START FRONT HISTORY ERROR:", historyError);
   }
 };
 
-  const value = useMemo(
-    () => ({
-      alters,
-      currentFrontIds,
-      history,
-      addAlter,
-      updateAlter,
-      deleteAlter,
-      toggleFront,
-    }),
-    [alters, currentFrontIds, history]
-  );
+const removeFromFront = async (alterId: string) => {
+  const user = session?.user;
+  if (!user) return;
+
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from("front_status")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("profile_id", alterId);
+
+  if (error) {
+    console.log("REMOVE FROM FRONT ERROR:", error);
+    return;
+  }
+
+  setCurrentFrontIds((prev) => prev.filter((id) => id !== alterId));
+
+  const { error: historyError } = await supabase
+    .from("front_history")
+    .update({ end_time: now })
+    .eq("user_id", user.id)
+    .eq("profile_id", alterId)
+    .is("end_time", null);
+
+  if (historyError) {
+    console.log("END FRONT HISTORY ERROR:", historyError);
+  }
+};
+
+const toggleFront = async (alterId: string) => {
+  const normalizedId = String(alterId);
+  const user = session?.user;
+  if (!user) return;
+
+  const now = new Date().toISOString();
+
+  setCurrentFrontIds((prev) => {
+    const isFronting = prev.includes(normalizedId);
+
+    // 🔥 UPDATE UI FIRST (source of truth)
+    const next = isFronting
+      ? prev.filter((id) => id !== normalizedId)
+      : [...prev, normalizedId];
+
+    // 🔥 THEN sync to DB
+    (async () => {
+      if (isFronting) {
+        await supabase
+          .from("front_status")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("profile_id", normalizedId);
+
+        await supabase
+          .from("front_history")
+          .update({ end_time: now })
+          .eq("user_id", user.id)
+          .eq("profile_id", normalizedId)
+          .is("end_time", null);
+      } else {
+        await supabase
+          .from("front_status")
+          .upsert(
+            {
+              user_id: user.id,
+              profile_id: normalizedId,
+              updated_at: now,
+            },
+            { onConflict: "user_id,profile_id" }
+          );
+
+        await supabase.from("front_history").insert({
+          user_id: user.id,
+          profile_id: normalizedId,
+          start_time: now,
+        });
+      }
+    })();
+
+    return next;
+  });
+};
+
+  const loadHistory = async () => {
+    const user = session?.user;
+    if (!user) {
+      setHistory([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("front_history")
+      .select(
+        `
+        id,
+        profile_id,
+        start_time,
+        end_time,
+        profiles (
+          id,
+          name,
+          icon_url
+        )
+      `
+      )
+      .eq("user_id", user.id)
+      .order("start_time", { ascending: false });
+
+    if (error) {
+      console.log("LOAD HISTORY ERROR:", error);
+      return;
+    }
+
+    if (data) {
+      const mapped: FrontSession[] = data.map((row: any) => {
+        const profile = Array.isArray(row.profiles)
+          ? row.profiles[0]
+          : row.profiles;
+
+        return {
+          id: String(row.id),
+          alterId: String(row.profile_id),
+          name: profile?.name ?? "Unknown",
+          avatar: profile?.icon_url ?? null,
+          start: row.start_time,
+          end: row.end_time,
+          date: new Date(row.start_time).toDateString(),
+        };
+      });
+
+      setHistory(mapped);
+    } else {
+      setHistory([]);
+    }
+  };
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (!session?.user) {
+      setAlters([]);
+      setCurrentFrontIds([]);
+      setHistory([]);
+      return;
+    }
+
+    void loadAlters();
+    void loadFrontStatus();
+    void loadHistory();
+  }, [session, loading]);
+
+ const value = useMemo(
+  () => ({
+    alters,
+    currentFrontIds,
+    history,
+    addAlter,
+    updateAlter,
+    deleteAlter,
+    toggleFront,
+    addToFront,
+    removeFromFront,
+    updateFrontStatus,
+    reloadAlters: loadAlters,
+    reloadHistory: loadHistory,
+    reloadFrontStatus: loadFrontStatus,
+  }),
+  [alters, currentFrontIds, history]
+);
 
   return (
     <SystemContext.Provider value={value}>

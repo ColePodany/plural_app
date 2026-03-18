@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   FlatList,
   Image,
@@ -22,7 +22,20 @@ export default function FriendsScreen() {
   const [acceptedIds, setAcceptedIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
-  const { friends, requests, acceptRequest } = useFriends();
+  const {
+    friends,
+    requests,
+    acceptRequest,
+    reloadFriends,
+    reloadRequests,
+  } = useFriends();
+
+  useFocusEffect(
+    useCallback(() => {
+      reloadFriends();
+      reloadRequests();
+    }, [reloadFriends, reloadRequests])
+  );
 
   return (
     <Screen style={styles.screen}>
@@ -73,7 +86,18 @@ export default function FriendsScreen() {
           }
           renderItem={({ item }) => {
             const user = item.users_public;
-            const currentFront = item.current_front;
+
+            // ✅ CLEAN: always array
+            const currentFronts = item.current_fronts || [];
+
+            const frontNames = currentFronts.map((f) => f.name);
+
+            const displayFront =
+              frontNames.length > 2
+                ? `${frontNames.slice(0, 2).join(", ")} +${
+                    frontNames.length - 2
+                  }`
+                : frontNames.join(", ");
 
             return (
               <Pressable
@@ -111,7 +135,10 @@ export default function FriendsScreen() {
                   </View>
 
                   <Text style={styles.frontText}>
-                    Fronting: {currentFront?.name ?? "No fronter set"}
+                    Fronting:{" "}
+                    {frontNames.length > 0
+                      ? displayFront
+                      : "No fronters"}
                   </Text>
                 </View>
               </Pressable>
@@ -163,165 +190,4 @@ export default function FriendsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: "#f7f7f7",
-  },
-
-  addButton: {
-    position: "absolute",
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#4a90e2",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: 16,
-    marginTop: 8,
-    color: "#111",
-  },
-
-  banner: {
-    backgroundColor: "#4a90e2",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginBottom: 10,
-  },
-
-  bannerText: {
-    color: "white",
-    fontWeight: "600",
-    textAlign: "center",
-  },
-
-  tabRow: {
-    flexDirection: "row",
-    marginBottom: 16,
-    gap: 8,
-  },
-
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    alignItems: "center",
-    backgroundColor: "#f0f0f0",
-  },
-
-  activeTab: {
-    backgroundColor: "#ddd",
-    borderColor: "#bbb",
-  },
-
-  tabText: {
-    fontWeight: "600",
-    color: "#111",
-  },
-
-  listContent: {
-    paddingBottom: 24,
-  },
-
-  emptyText: {
-    opacity: 0.6,
-    marginTop: 12,
-    textAlign: "center",
-    color: "#666",
-  },
-
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e5e5",
-    backgroundColor: "#fff",
-    marginBottom: 10,
-  },
-
-  cardColumn: {
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e5e5",
-    backgroundColor: "#fff",
-    marginBottom: 10,
-  },
-
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#ddd",
-    marginRight: 14,
-  },
-
-  cardText: {
-    flex: 1,
-  },
-
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  nameBlock: {
-    flex: 1,
-    marginRight: 8,
-  },
-
-  name: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: "#111",
-  },
-
-  subtext: {
-    opacity: 0.7,
-    marginTop: 2,
-    color: "#666",
-  },
-
-  frontText: {
-    marginTop: 8,
-    fontSize: 14,
-    color: "#444",
-  },
-
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
-  },
-
-  acceptButton: {
-    flex: 1,
-    backgroundColor: "#4a90e2",
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-
-  acceptedButton: {
-    backgroundColor: "#2e7d32",
-  },
-
-  buttonText: {
-    color: "white",
-    fontWeight: "600",
-  },
-});
+const styles = StyleSheet.create({ screen: { flex: 1, padding: 16, backgroundColor: "#f7f7f7", }, addButton: { position: "absolute", right: 12, width: 36, height: 36, borderRadius: 18, backgroundColor: "#4a90e2", alignItems: "center", justifyContent: "center", zIndex: 10, }, title: { fontSize: 28, fontWeight: "700", marginBottom: 16, marginTop: 8, color: "#111", }, banner: { backgroundColor: "#4a90e2", paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, marginBottom: 10, }, bannerText: { color: "white", fontWeight: "600", textAlign: "center", }, tabRow: { flexDirection: "row", marginBottom: 16, gap: 8, }, tabButton: { flex: 1, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: "#ddd", alignItems: "center", backgroundColor: "#f0f0f0", }, activeTab: { backgroundColor: "#ddd", borderColor: "#bbb", }, tabText: { fontWeight: "600", color: "#111", }, listContent: { paddingBottom: 24, }, emptyText: { opacity: 0.6, marginTop: 12, textAlign: "center", color: "#666", }, card: { flexDirection: "row", alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#e5e5e5", backgroundColor: "#fff", marginBottom: 10, }, cardColumn: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: "#e5e5e5", backgroundColor: "#fff", marginBottom: 10, }, avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: "#ddd", marginRight: 14, }, cardText: { flex: 1, }, topRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", }, nameBlock: { flex: 1, marginRight: 8, }, name: { fontSize: 17, fontWeight: "600", color: "#111", }, subtext: { opacity: 0.7, marginTop: 2, color: "#666", }, frontText: { marginTop: 8, fontSize: 14, color: "#444", }, actionRow: { flexDirection: "row", gap: 10, marginTop: 12, }, acceptButton: { flex: 1, backgroundColor: "#4a90e2", paddingVertical: 10, borderRadius: 10, alignItems: "center", }, acceptedButton: { backgroundColor: "#2e7d32", }, buttonText: { color: "white", fontWeight: "600", }, });

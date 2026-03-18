@@ -1,14 +1,25 @@
-import { router } from "expo-router";
+import { supabase } from "@/lib/supabase";
+import { Redirect, router } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput } from "react-native";
 
 import Screen from "@/components/Screen";
-import { supabase } from "@/lib/supabase";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function AuthScreen() {
+  const { session, loading: authLoading } = useAuth();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  if (authLoading) {
+    return null;
+  }
+
+  if (session) {
+    return <Redirect href="/(tabs)" />;
+  }
 
   async function signUp() {
     if (!email.trim() || !password.trim()) return;
@@ -73,10 +84,16 @@ export default function AuthScreen() {
       />
 
       <Pressable style={styles.button} onPress={signIn} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? "Loading..." : "Log In"}</Text>
+        <Text style={styles.buttonText}>
+          {loading ? "Loading..." : "Log In"}
+        </Text>
       </Pressable>
 
-      <Pressable style={styles.secondaryButton} onPress={signUp} disabled={loading}>
+      <Pressable
+        style={styles.secondaryButton}
+        onPress={signUp}
+        disabled={loading}
+      >
         <Text style={styles.secondaryButtonText}>Create Account</Text>
       </Pressable>
     </Screen>

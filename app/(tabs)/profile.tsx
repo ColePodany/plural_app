@@ -1,12 +1,41 @@
 import { supabase } from "@/lib/supabase";
 import { router } from "expo-router";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 import Screen from "@/components/Screen";
+import { useAuth } from "../../contexts/AuthContext";
 import { useProfile } from "../../contexts/ProfileContext";
 
 export default function ProfileScreen() {
-  const { profile } = useProfile();
+  const { session } = useAuth();
+  const { profile, loading } = useProfile();
+
+  if (!session) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <Screen style={styles.center}>
+        <ActivityIndicator size="large" />
+      </Screen>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <Screen style={styles.center}>
+        <Text>No profile found.</Text>
+      </Screen>
+    );
+  }
 
   return (
     <Screen style={styles.screen}>
@@ -16,8 +45,8 @@ export default function ProfileScreen() {
           style={styles.avatar}
         />
 
-        <Text style={styles.displayName}>{profile.displayName}</Text>
-        <Text style={styles.username}>@{profile.username}</Text>
+        <Text style={styles.displayName}>{profile.displayName || "No name"}</Text>
+        <Text style={styles.username}>@{profile.username || "unknown"}</Text>
 
         <Pressable
           style={styles.editButton}
@@ -43,11 +72,19 @@ export default function ProfileScreen() {
         </Pressable>
       </View>
 
-      <Pressable style={styles.logoutButton}
-      onPress={async () => {
-        await supabase.auth.signOut();
-        router.replace("/auth");
-      }}>
+      <Pressable
+        style={styles.logoutButton}
+        onPress={async () => {
+          const { error } = await supabase.auth.signOut();
+
+          if (error) {
+            console.log("SIGN OUT ERROR:", error);
+            return;
+          }
+
+          router.replace("/auth");
+        }}
+      >
         <Text style={styles.logoutText}>Log Out</Text>
       </Pressable>
     </Screen>
@@ -58,6 +95,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     padding: 16,
+  },
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   header: {
     alignItems: "center",

@@ -1,29 +1,40 @@
+import { useFocusEffect } from "expo-router";
+import { useCallback, useMemo } from "react";
 import { FlatList, Image, StyleSheet, Text, View } from "react-native";
 
 import Screen from "@/components/Screen";
 import {
-    formatDuration,
-    formatTime,
-    useSystem,
+  formatDuration,
+  formatTime,
+  useSystem,
 } from "../../contexts/SystemContext";
 
 export default function HistoryScreen() {
-  const { history, alters } = useSystem();
+  const { history, reloadHistory, reloadAlters } = useSystem();
 
-  const groupedHistory = history.reduce((acc, entry) => {
-    const existingDay = acc.find((day) => day.date === entry.date);
+  useFocusEffect(
+    useCallback(() => {
+      reloadHistory();
+      reloadAlters();
+    }, [reloadHistory, reloadAlters])
+  );
 
-    if (existingDay) {
-      existingDay.entries.push(entry);
-    } else {
-      acc.push({
-        date: entry.date,
-        entries: [entry],
-      });
-    }
+  const groupedHistory = useMemo(() => {
+    return history.reduce((acc, entry) => {
+      const existingDay = acc.find((day) => day.date === entry.date);
 
-    return acc;
-  }, [] as { date: string; entries: typeof history }[]);
+      if (existingDay) {
+        existingDay.entries.push(entry);
+      } else {
+        acc.push({
+          date: entry.date,
+          entries: [entry],
+        });
+      }
+
+      return acc;
+    }, [] as { date: string; entries: typeof history }[]);
+  }, [history]);
 
   return (
     <Screen style={styles.screen}>
@@ -41,21 +52,15 @@ export default function HistoryScreen() {
             <Text style={styles.dayTitle}>{item.date}</Text>
 
             {item.entries.map((entry) => {
-              const alter = alters.find((a) => a.id === entry.alterId);
+              const name = entry.name ?? "Unknown Alter";
+              const avatar = entry.avatar || "https://placehold.co/100";
 
               return (
                 <View key={entry.id} style={styles.card}>
-                  <Image
-                    source={{
-                      uri: alter?.avatar || "https://placehold.co/100",
-                    }}
-                    style={styles.avatar}
-                  />
+                  <Image source={{ uri: avatar }} style={styles.avatar} />
 
                   <View style={styles.cardText}>
-                    <Text style={styles.name}>
-                      {alter?.name ?? "Unknown Alter"}
-                    </Text>
+                    <Text style={styles.name}>{name}</Text>
 
                     {entry.allDay ? (
                       <Text style={styles.subtext}>Fronted all day</Text>
