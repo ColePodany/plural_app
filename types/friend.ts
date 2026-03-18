@@ -1,8 +1,10 @@
-export type Friend = {
-  id: string;
-  name: string;
-  avatar?: string;
-  currentFront?: string[];
+type Friend = {
+  friend_id: string;
+  users_public: {
+    display_name: string;
+    username: string;
+    avatar_url: string;
+  } | null;
 };
 
 export type FriendRequest = {

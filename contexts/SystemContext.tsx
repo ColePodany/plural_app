@@ -1,6 +1,7 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Alter, FrontSession, SystemContextType } from "../types/system";
+import { useAuth } from "./AuthContext";
 
 const SystemContext = createContext<SystemContextType | undefined>(undefined);
 
@@ -31,15 +32,18 @@ export function formatDuration(start: string, end: string) {
 
 export function SystemProvider({ children }: { children: ReactNode }) {
 
+  const { session } = useAuth();
   const [alters, setAlters] = useState<Alter[]>([]);
   const [currentFrontIds, setCurrentFrontIds] = useState<string[]>([]);
   const [history, setHistory] = useState<FrontSession[]>([]);
 
 useEffect(() => {
+  if (!session?.user) return;
+
   loadAlters();
   loadFrontStatus();
   loadHistory();
-}, []);
+}, [session]);
 
  const loadAlters = async () => {
   const { data: { user } } = await supabase.auth.getUser();
