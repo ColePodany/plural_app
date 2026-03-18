@@ -2,10 +2,20 @@ import { Stack } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import * as Notifications from "expo-notifications";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import { FriendProvider } from "../contexts/FriendContext";
 import { ProfileProvider } from "../contexts/ProfileContext";
 import { SystemProvider } from "../contexts/SystemContext";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 function AppNavigator() {
   const { session, loading } = useAuth();

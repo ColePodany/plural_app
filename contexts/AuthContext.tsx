@@ -1,6 +1,13 @@
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
-import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { registerForPush } from "../lib/push";
 
 type AuthContextType = {
   session: Session | null;
@@ -15,6 +22,8 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  /* ------------------ LOAD SESSION ------------------ */
 
   useEffect(() => {
     let mounted = true;
@@ -53,6 +62,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  /* ------------------ PUSH REGISTRATION ------------------ */
+
+  useEffect(() => {
+    if (!session?.user) return;
+
+    // 🔥 important: do NOT block UI
+    registerForPush(session.user.id).catch((err) => {
+      console.log("PUSH REGISTRATION ERROR:", err);
+    });
+  }, [session]);
+
+  /* ------------------ PROVIDER ------------------ */
 
   return (
     <AuthContext.Provider value={{ session, loading }}>

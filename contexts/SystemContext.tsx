@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { sendPush } from "../lib/sendPush";
 import { supabase } from "../lib/supabase";
 import { Alter, FrontSession, SystemContextType } from "../types/system";
 import { useAuth } from "./AuthContext";
@@ -280,50 +281,129 @@ const toggleFront = async (alterId: string) => {
 
   const now = new Date().toISOString();
 
+  // ✅ use functional state so TS + React stay in sync
   setCurrentFrontIds((prev) => {
     const isFronting = prev.includes(normalizedId);
 
-    // 🔥 UPDATE UI FIRST (source of truth)
-    const next = isFronting
+    const nextFrontIds = isFronting
       ? prev.filter((id) => id !== normalizedId)
       : [...prev, normalizedId];
 
-    // 🔥 THEN sync to DB
+    // 🔥 run async AFTER computing next state
     (async () => {
-      if (isFronting) {
-        await supabase
-          .from("front_status")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("profile_id", normalizedId);
+      try {
+        console.log("🔥 TOGGLE BACKEND START");
 
-        await supabase
-          .from("front_history")
-          .update({ end_time: now })
-          .eq("user_id", user.id)
-          .eq("profile_id", normalizedId)
-          .is("end_time", null);
-      } else {
-        await supabase
-          .from("front_status")
-          .upsert(
-            {
-              user_id: user.id,
-              profile_id: normalizedId,
-              updated_at: now,
-            },
-            { onConflict: "user_id,profile_id" }
-          );
+        // =====================
+        // DB SYNC
+        // =====================
+        if (isFronting) {
+          console.log("➡️ Removing from front");
 
-        await supabase.from("front_history").insert({
-          user_id: user.id,
-          profile_id: normalizedId,
-          start_time: now,
+          await supabase
+            .from("front_status")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("profile_id", normalizedId);
+
+          await supabase
+            .from("front_history")
+            .update({ end_time: now })
+            .eq("user_id", user.id)
+            .eq("profile_id", normalizedId)
+            .is("end_time", null);
+        } else {
+          console.log("➡️ Adding to front");
+
+          await supabase
+            .from("front_status")
+            .upsert(
+              {
+                user_id: user.id,
+                profile_id: normalizedId,
+                updated_at: now,
+              },
+              { onConflict: "user_id,profile_id" }
+            );
+
+          await supabase.from("front_history").insert({
+            user_id: user.id,
+            profile_id: normalizedId,
+            start_time: now,
+          });
+        }
+
+        // =====================
+        // BUILD MESSAGE
+        // =====================
+        const frontNames = alters
+          .filter((a) => nextFrontIds.includes(a.id))
+          .map((a) => a.name);
+
+          // 🔥 GET USER DISPLAY NAME
+const { data: profile } = await supabase
+  .from("users_public")
+  .select("display_name, username")
+  .eq("user_id", user.id)
+  .single();
+
+const displayName =
+  profile?.display_name || profile?.username || "Someone";
+
+    const message =
+  frontNames.length > 0
+    ? `${displayName}: ${frontNames.join(", ")}`
+    : `${displayName}: No one is fronting`;
+
+        console.log("🧠 MESSAGE:", message);
+
+        // =====================
+        // FRIEND IDS
+        // =====================
+        const { data: friendRows } = await supabase
+          .from("friendships")
+          .select("friend_id")
+          .eq("user_id", user.id);
+
+        const friendIds = friendRows?.map((f: any) => f.friend_id) || [];
+
+        console.log("👥 FRIEND IDS:", friendIds);
+
+        // =====================
+        // TOKENS
+        // =====================
+        const { data: tokens } = await supabase
+          .from("device_tokens")
+          .select("expo_push_token")
+          .in("user_id", [user.id, ...friendIds]);
+
+        console.log("📱 RAW TOKENS:", tokens);
+
+        if (!tokens || tokens.length === 0) {
+          console.log("❌ NO TOKENS FOUND");
+          return;
+        }
+
+        const uniqueTokens = [
+          ...new Set(tokens.map((t: any) => t.expo_push_token)),
+        ];
+
+        console.log("📦 UNIQUE TOKENS:", uniqueTokens);
+
+        // =====================
+        // SEND PUSH
+        // =====================
+        uniqueTokens.forEach((token) => {
+          console.log("🚀 CALLING sendPush:", token);
+          sendPush(token, "Front Update", message);
         });
+
+      } catch (err) {
+        console.log("❌ TOGGLE FRONT ERROR:", err);
       }
     })();
 
-    return next;
+    return nextFrontIds;
   });
 };
 

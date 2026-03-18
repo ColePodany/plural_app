@@ -19,22 +19,41 @@ export default function HistoryScreen() {
     }, [reloadHistory, reloadAlters])
   );
 
-  const groupedHistory = useMemo(() => {
-    return history.reduce((acc, entry) => {
-      const existingDay = acc.find((day) => day.date === entry.date);
+ const groupedHistory = useMemo(() => {
+  // 🔥 1. SORT BY MOST RECENT ACTIVITY
+  const sorted = [...history].sort(
+    (a, b) =>
+      new Date(b.end ?? b.start).getTime() -
+      new Date(a.end ?? a.start).getTime()
+  );
 
-      if (existingDay) {
-        existingDay.entries.push(entry);
-      } else {
-        acc.push({
-          date: entry.date,
-          entries: [entry],
-        });
-      }
+  // 🔥 2. GROUP BY DATE
+  const grouped = sorted.reduce((acc, entry) => {
+    const existingDay = acc.find((day) => day.date === entry.date);
 
-      return acc;
-    }, [] as { date: string; entries: typeof history }[]);
-  }, [history]);
+    if (existingDay) {
+      existingDay.entries.push(entry);
+    } else {
+      acc.push({
+        date: entry.date,
+        entries: [entry],
+      });
+    }
+
+    return acc;
+  }, [] as { date: string; entries: typeof history }[]);
+
+  // 🔥 3. SORT INSIDE EACH DAY (same logic)
+  grouped.forEach((day) => {
+    day.entries.sort(
+      (a, b) =>
+        new Date(b.end ?? b.start).getTime() -
+        new Date(a.end ?? a.start).getTime()
+    );
+  });
+
+  return grouped;
+}, [history]);
 
   return (
     <Screen style={styles.screen}>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "518423698667",
+    "project_id": "plural-test-589ff",
+    "storage_bucket": "plural-test-589ff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:518423698667:android:61ec114acd8d7d37a2f2ae",
+        "android_client_info": {
+          "package_name": "com.colepodany.pluraltest"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMlbow7pQ-bUa3LzrBcmnBOL8sUoITMnU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
