@@ -16,9 +16,9 @@ import { useFriends } from "../../contexts/FriendContext";
 export default function AddFriendScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
-  const [sentIds, setSentIds] = useState<string[]>([]); // ✅ track sent
 
-  const { sendRequest, friends, requests } = useFriends();
+  const { sendRequest, friends, requests, outgoingRequests } =
+    useFriends();
 
   // 🔍 Search users
   const searchUsers = async (text: string) => {
@@ -43,17 +43,30 @@ export default function AddFriendScreen() {
     setResults(data || []);
   };
 
-  // 🚫 Filter existing
-  const filteredUsers = results.filter((user) => {
+  // 🚫 Filter + status logic
+  const filteredUsers = results.map((user) => {
     const isFriend = friends.some(
       (f) => f.friend_id === user.user_id
     );
 
-    const isOutgoing = requests.some(
-      (r) => r.receiver_id === user.user_id
+    const isIncoming = requests.some(
+      (r) => r.user_id === user.user_id
     );
 
-    return !isFriend && !isOutgoing;
+    const isOutgoing = outgoingRequests.some(
+      (r) => r.user_id === user.user_id
+    );
+
+    return {
+      ...user,
+      status: isFriend
+        ? "friend"
+        : isIncoming
+        ? "incoming"
+        : isOutgoing
+        ? "outgoing"
+        : "none",
+    };
   });
 
   return (
@@ -76,8 +89,6 @@ export default function AddFriendScreen() {
           <Text style={styles.emptyText}>No users found.</Text>
         }
         renderItem={({ item }) => {
-          const isSent = sentIds.includes(item.user_id);
-
           return (
             <View style={styles.card}>
               <View style={styles.leftSide}>
@@ -98,29 +109,46 @@ export default function AddFriendScreen() {
                 </View>
               </View>
 
-              <Pressable
-                style={[
-                  styles.addButton,
-                  isSent && styles.sentButton,
-                ]}
-                disabled={isSent}
-                onPress={async () => {
-                  const success = await sendRequest(item.username);
+              {/* 🔥 BUTTON STATES */}
+              {item.status === "friend" && (
+                <View style={styles.disabledButton}>
+                  <Text style={styles.disabledText}>Friends</Text>
+                </View>
+              )}
 
-                  if (success) {
-                    setSentIds((prev) => [...prev, item.user_id]);
+              {item.status === "incoming" && (
+                <View style={styles.pendingButton}>
+                  <Text style={styles.pendingText}>Incoming</Text>
+                </View>
+              )}
 
-                    // optional: remove from list instantly
-                    setResults((prev) =>
-                      prev.filter((u) => u.user_id !== item.user_id)
-                    );
-                  }
-                }}
-              >
-                <Text style={styles.addButtonText}>
-                  {isSent ? "Sent ✓" : "Add"}
-                </Text>
-              </Pressable>
+              {item.status === "outgoing" && (
+                <View style={styles.sentButton}>
+                  <Text style={styles.addButtonText}>Sent ✓</Text>
+                </View>
+              )}
+
+              {item.status === "none" && (
+                <Pressable
+                  style={styles.addButton}
+                  onPress={async () => {
+                    const success = await sendRequest(item.username);
+
+                    if (success) {
+                      // instantly reflect UI
+                      setResults((prev) =>
+                        prev.map((u) =>
+                          u.user_id === item.user_id
+                            ? { ...u, status: "outgoing" }
+                            : u
+                        )
+                      );
+                    }
+                  }}
+                >
+                  <Text style={styles.addButtonText}>Add</Text>
+                </Pressable>
+              )}
             </View>
           );
         }}
@@ -216,10 +244,37 @@ const styles = StyleSheet.create({
 
   sentButton: {
     backgroundColor: "#2e7d32",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+
+  pendingButton: {
+    backgroundColor: "#aaa",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+
+  disabledButton: {
+    backgroundColor: "#ccc",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
 
   addButtonText: {
     color: "white",
+    fontWeight: "600",
+  },
+
+  pendingText: {
+    color: "white",
+    fontWeight: "600",
+  },
+
+  disabledText: {
+    color: "#555",
     fontWeight: "600",
   },
 });

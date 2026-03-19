@@ -1,7 +1,16 @@
 import Screen from "@/components/Screen";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { FlatList, Image, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
 
 type Member = {
@@ -22,10 +31,58 @@ export default function FriendSystemScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const friendId = Array.isArray(id) ? id[0] : id;
 
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+
   const [friend, setFriend] = useState<FriendProfile | null>(null);
   const [frontIds, setFrontIds] = useState<string[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /* ---------------- DELETE FRIEND ---------------- */
+
+  const removeFriend = async () => {
+    if (!friendId || !userId) return;
+
+    Alert.alert(
+      "Remove Friend",
+      "Are you sure you want to remove this friend?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            // 🔥 delete friendships BOTH directions
+            const { error: friendError } = await supabase
+              .from("friendships")
+              .delete()
+              .or(
+                `and(user_id.eq.${userId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${userId})`
+              );
+
+            if (friendError) {
+              console.log("REMOVE FRIEND ERROR:", friendError);
+              Alert.alert("Error", "Failed to remove friend.");
+              return;
+            }
+
+            // 🔥 also clean up requests
+            await supabase
+              .from("friend_requests")
+              .delete()
+              .or(
+                `and(sender_id.eq.${userId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${userId})`
+              );
+
+            router.back();
+          },
+        },
+      ]
+    );
+  };
+
+  /* ---------------- LOAD DATA ---------------- */
 
   useEffect(() => {
     const loadFriendSystem = async () => {
@@ -36,40 +93,25 @@ export default function FriendSystemScreen() {
 
       setLoading(true);
 
-      // 🔹 Friend profile
-      const { data: userData, error: userError } = await supabase
+      const { data: userData } = await supabase
         .from("users_public")
         .select("user_id, display_name, username, avatar_url")
         .eq("user_id", friendId)
         .maybeSingle();
 
-      if (userError) {
-        console.log("FRIEND PROFILE ERROR:", userError);
-      }
-
-      // 🔹 Front status (MULTIPLE)
-      const { data: frontData, error: frontError } = await supabase
+      const { data: frontData } = await supabase
         .from("front_status")
         .select("profile_id")
         .eq("user_id", friendId);
-
-      if (frontError) {
-        console.log("FRONT STATUS ERROR:", frontError);
-      }
 
       const ids = (frontData || []).map((row: any) =>
         String(row.profile_id)
       );
 
-      // 🔹 Members
-      const { data: memberData, error: memberError } = await supabase
+      const { data: memberData } = await supabase
         .from("profiles")
         .select("id, name, pronouns, icon_url")
         .eq("user_id", friendId);
-
-      if (memberError) {
-        console.log("FRIEND MEMBERS ERROR:", memberError);
-      }
 
       setFriend(userData ?? null);
       setFrontIds(ids);
@@ -80,18 +122,17 @@ export default function FriendSystemScreen() {
     loadFriendSystem();
   }, [friendId]);
 
-  // 🔹 Split members
+  /* ---------------- SPLIT MEMBERS ---------------- */
+
   const frontingMembers = useMemo(() => {
-    return members.filter((member) =>
-      frontIds.includes(String(member.id))
-    );
+    return members.filter((m) => frontIds.includes(String(m.id)));
   }, [members, frontIds]);
 
   const otherMembers = useMemo(() => {
-    return members.filter(
-      (member) => !frontIds.includes(String(member.id))
-    );
+    return members.filter((m) => !frontIds.includes(String(m.id)));
   }, [members, frontIds]);
+
+  /* ---------------- STATES ---------------- */
 
   if (loading) {
     return (
@@ -113,6 +154,8 @@ export default function FriendSystemScreen() {
     );
   }
 
+  /* ---------------- UI ---------------- */
+
   return (
     <Screen style={styles.screen}>
       <FlatList
@@ -128,9 +171,11 @@ export default function FriendSystemScreen() {
                 }}
                 style={styles.avatar}
               />
+
               <Text style={styles.name}>
                 {friend.display_name || "No name"}
               </Text>
+
               <Text style={styles.username}>@{friend.username}</Text>
 
               <Text style={styles.subtext}>
@@ -139,6 +184,11 @@ export default function FriendSystemScreen() {
                   ? frontingMembers.map((m) => m.name).join(", ")
                   : "No fronters"}
               </Text>
+
+              {/* 🔥 DELETE BUTTON */}
+              <Pressable style={styles.deleteButton} onPress={removeFriend}>
+                <Text style={styles.deleteText}>Remove Friend</Text>
+              </Pressable>
             </View>
 
             {frontingMembers.length > 0 && (
@@ -146,6 +196,7 @@ export default function FriendSystemScreen() {
                 <Text style={styles.sectionTitle}>
                   Currently Fronting
                 </Text>
+
                 {frontingMembers.map((item) => (
                   <View key={item.id} style={styles.card}>
                     <View style={styles.memberRow}>
@@ -203,6 +254,8 @@ export default function FriendSystemScreen() {
     </Screen>
   );
 }
+
+/* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
   screen: {
@@ -283,5 +336,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginTop: 2,
     color: "#666",
+  },
+
+  deleteButton: {
+    marginTop: 12,
+    backgroundColor: "#ff3b30",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  deleteText: {
+    color: "white",
+    fontWeight: "600",
   },
 });

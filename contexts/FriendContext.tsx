@@ -21,17 +21,26 @@ type Friend = {
 
 type FriendRequest = {
   id: string;
-  sender_id: string;
-  receiver_id: string;
+  user_id: string; // 🔥 unified field
+
+  users_public: {
+    display_name: string;
+    username: string;
+    avatar_url: string | null;
+  } | null;
 };
 
 type FriendContextType = {
   friends: Friend[];
   requests: FriendRequest[];
+  outgoingRequests: FriendRequest[];
+
   sendRequest: (username: string) => Promise<boolean>;
   acceptRequest: (id: string) => Promise<void>;
+
   reloadFriends: () => Promise<void>;
   reloadRequests: () => Promise<void>;
+  reloadOutgoingRequests: () => Promise<void>;
 };
 
 /* ------------------ CONTEXT ------------------ */
@@ -43,12 +52,14 @@ const FriendContext = createContext<FriendContextType | undefined>(undefined);
 export function FriendProvider({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
 
+ const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
+
   const [friends, setFriends] = useState<Friend[]>([]);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
 
   /* ------------------ LOAD FRIENDS ------------------ */
 
-  const loadFriends = async () => {
+const loadFriends = async () => {
     const user = session?.user;
 
     if (!user) {
@@ -151,19 +162,73 @@ if (!profile || profile.user_id !== row.user_id) return;
       return;
     }
 
-    const { data, error } = await supabase
-      .from("friend_requests")
-      .select("*")
-      .eq("receiver_id", user.id)
-      .eq("status", "pending");
+   const { data, error } = await supabase
+  .from("friend_requests")
+  .select(`
+    id,
+    sender_id,
+    users_public:sender_id (
+      display_name,
+      username,
+      avatar_url
+    )
+  `)
+  .eq("receiver_id", user.id)
+  .eq("status", "pending");
 
     if (error) {
       console.log("LOAD REQUESTS ERROR:", error);
       return;
     }
 
-    setRequests((data || []) as FriendRequest[]);
+  setRequests(
+  (data || []).map((item: any) => ({
+    id: item.id,
+    user_id: item.sender_id,
+    users_public: Array.isArray(item.users_public)
+      ? item.users_public[0] || null
+      : item.users_public || null,
+  }))
+);
   };
+
+  const loadOutgoingRequests = async () => {
+  const user = session?.user;
+
+  if (!user) {
+    setOutgoingRequests([]);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("friend_requests")
+    .select(`
+      id,
+      receiver_id,
+      users_public:receiver_id (
+        display_name,
+        username,
+        avatar_url
+      )
+    `)
+    .eq("sender_id", user.id)
+    .eq("status", "pending");
+
+  if (error) {
+    console.log("LOAD OUTGOING ERROR:", error);
+    return;
+  }
+
+  setOutgoingRequests(
+    (data || []).map((item: any) => ({
+      id: item.id,
+      user_id: item.receiver_id,
+      users_public: Array.isArray(item.users_public)
+        ? item.users_public[0] || null
+        : item.users_public || null,
+    }))
+  );
+};
 
   /* ------------------ SEND REQUEST ------------------ */
 
@@ -198,13 +263,19 @@ if (!profile || profile.user_id !== row.user_id) return;
       receiver_id: target.user_id,
     });
 
-    if (error) {
-      console.log("SEND ERROR:", error);
-      alert(error.message);
-      return false;
-    }
+  if (error) {
+  if (error.code === "23505") {
+    alert("Request already exists");
+    return false;
+  }
+
+  console.log("SEND ERROR:", error);
+  alert(error.message);
+  return false;
+}
 
     await loadRequests();
+    await loadOutgoingRequests();
     return true;
   };
 
@@ -227,18 +298,19 @@ if (!profile || profile.user_id !== row.user_id) return;
       return;
     }
 
-    const { error: insertError } = await supabase.from("friendships").insert([
-      { user_id: user.id, friend_id: request.sender_id },
-      { user_id: request.sender_id, friend_id: user.id },
-    ]);
+   const { error: insertError } = await supabase.from("friendships").insert([
+  { user_id: user.id, friend_id: request.user_id },
+  { user_id: request.user_id, friend_id: user.id },
+]);
 
     if (insertError) {
       console.log("CREATE FRIENDSHIPS ERROR:", insertError);
       return;
     }
 
-    await loadFriends();
-    await loadRequests();
+  await loadFriends();
+await loadRequests();
+await loadOutgoingRequests(); 
   };
 
   /* ------------------ EFFECT ------------------ */
@@ -249,11 +321,13 @@ if (!profile || profile.user_id !== row.user_id) return;
     if (!session?.user) {
       setFriends([]);
       setRequests([]);
+      setOutgoingRequests([]);
       return;
     }
 
     loadFriends();
     loadRequests();
+    loadOutgoingRequests();
   }, [session, loading]);
 
   /* ------------------ PROVIDER ------------------ */
@@ -267,6 +341,8 @@ if (!profile || profile.user_id !== row.user_id) return;
         acceptRequest,
         reloadFriends: loadFriends,
         reloadRequests: loadRequests,
+        outgoingRequests,
+reloadOutgoingRequests: loadOutgoingRequests,
       }}
     >
       {children}
