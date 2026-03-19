@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -8,85 +8,102 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Screen from "@/components/Screen";
+import { supabase } from "@/lib/supabase";
 import { useSystem } from "../../contexts/SystemContext";
 
 /* ------------------ TYPES ------------------ */
+type FolderItem = {
+  type: "folder";
+  id: string;
+  name: string;
+};
+
+type AlterItem = {
+  type: "alter";
+  id: string;
+  name: string;
+  pronouns?: string;
+  avatar?: string;
+};
+
 type HeaderItem = {
   type: "header";
   title: string;
 };
 
-type AlterItem = {
-  type: "fronter" | "member";
-  id: string;
-  name: string;
-  pronouns?: string;
-  avatar?: string;
-  description?: string;
-};
+type ListItem = FolderItem | AlterItem | HeaderItem;
 
-type ListItem = HeaderItem | AlterItem;
+/* ------------------ ALTER CARD ------------------ */
+const AlterCard = ({
+  item,
+  isFronting,
+  onToggle,
+}: {
+  item: AlterItem;
+  isFronting: boolean;
+  onToggle: () => void;
+}) => (
+  <View style={styles.card}>
+    <Pressable
+      style={styles.cardMain}
+      onPress={() =>
+        router.push({
+          pathname: "/alter/[id]",
+          params: { id: item.id },
+        })
+      }
+    >
+      <Image
+        source={{
+          uri: item.avatar || "https://placehold.co/100x100",
+        }}
+        style={styles.avatar}
+      />
 
-/* ------------------ MEMO CARD ------------------ */
-const AlterCard = React.memo(
-  ({
-    item,
-    isFronting,
-    onToggle,
-  }: {
-    item: AlterItem;
-    isFronting: boolean;
-    onToggle: () => void;
-  }) => {
-    return (
-      <View style={styles.card}>
-        <Pressable
-          style={styles.cardMain}
-          onPress={() =>
-            router.push({
-              pathname: "/alter/[id]",
-              params: { id: item.id },
-            })
-          }
-        >
-          <Image
-            source={{
-              uri:
-                item.avatar ||
-                "https://placehold.co/100x100/444/FFF/png",
-            }}
-            style={styles.avatar}
-          />
-
-          <View style={styles.cardText}>
-            <Text style={styles.name}>{item.name}</Text>
-            {!!item.pronouns && (
-              <Text style={styles.pronouns}>{item.pronouns}</Text>
-            )}
-          </View>
-        </Pressable>
-
-        <Pressable
-          style={[
-            styles.frontToggle,
-            isFronting && styles.frontActive,
-          ]}
-          onPress={onToggle}
-        >
-          <Ionicons
-            name={isFronting ? "remove" : "add"}
-            size={18}
-            color="white"
-          />
-        </Pressable>
+      <View style={styles.cardText}>
+        <Text style={styles.name}>{item.name}</Text>
+        {!!item.pronouns && (
+          <Text style={styles.pronouns}>{item.pronouns}</Text>
+        )}
       </View>
-    );
-  }
+    </Pressable>
+
+    <Pressable
+      style={[
+        styles.frontToggle,
+        isFronting && styles.frontActive,
+      ]}
+      onPress={onToggle}
+    >
+      <Ionicons
+        name={isFronting ? "remove" : "add"}
+        size={18}
+        color="white"
+      />
+    </Pressable>
+  </View>
+);
+
+/* ------------------ FOLDER CARD ------------------ */
+const FolderCard = ({ item }: { item: FolderItem }) => (
+  <Pressable
+    style={styles.folderCard}
+   onPress={() =>
+  router.push({
+    pathname: "/folder/[id]",
+    params: { id: item.id },
+  })
+}
+  >
+    <Ionicons name="folder" size={20} color="#aaa" />
+    <Text style={styles.folderText}>{item.name}</Text>
+  </Pressable>
 );
 
 /* ------------------ SCREEN ------------------ */
@@ -102,49 +119,107 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+const [folders, setFolders] = useState<any[]>([]);
+
+useEffect(() => {
+  const loadFolders = async () => {
+    const { data, error } = await supabase
+      .from("alter_folders")
+      .select("*")
+      .order("created_at");
+
+    if (error) {
+      console.log("LOAD FOLDERS ERROR:", error);
+      return;
+    }
+
+    setFolders(data || []);
+  };
+
+  loadFolders();
+}, []);
+
+  /* -------- CREATE FOLDER -------- */
+  const createFolder = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    await supabase.from("alter_folders").insert({
+      name: newFolderName,
+      user_id: user?.id,
+    });
+
+  setCreatingFolder(false);
+setNewFolderName("");
+
+await reloadAlters();
+
+// 🔥 reload folders immediately
+const { data } = await supabase
+  .from("alter_folders")
+  .select("*")
+  .order("created_at");
+
+setFolders(data || []);
+  };
+
+  /* -------- DATA SPLIT -------- */
   const fronters = useMemo(
-    () => alters.filter((a) => currentFrontIds.includes(String(a.id))),
+    () => alters.filter((a) => currentFrontIds.includes(a.id)),
     [alters, currentFrontIds]
   );
 
-  const nonFronters = useMemo(
-    () => alters.filter((a) => !currentFrontIds.includes(String(a.id))),
-    [alters, currentFrontIds]
+const ungrouped = alters.filter(
+  (a) => !currentFrontIds.includes(a.id)
+);
+  /* -------- BUILD LIST -------- */
+ const combined: ListItem[] = useMemo(() => {
+  const list: ListItem[] = [];
+
+  // 🔥 FOLDERS FIRST
+  list.push({ type: "header", title: "Folders" });
+  folders.forEach((f: any) =>
+    list.push({
+      type: "folder",
+      id: f.id,
+      name: f.name,
+    })
   );
 
-  const combined: ListItem[] = useMemo(() => {
-    return [
-      { type: "header", title: "Current Fronters" },
-      ...fronters.map((a) => ({
-        type: "fronter" as const,
-        id: String(a.id),
-        name: a.name,
-        pronouns: a.pronouns,
-        avatar: a.avatar,
-        description: a.description,
-      })),
-      { type: "header", title: "All Members" },
-      ...nonFronters.map((a) => ({
-        type: "member" as const,
-        id: String(a.id),
-        name: a.name,
-        pronouns: a.pronouns,
-        avatar: a.avatar,
-        description: a.description,
-      })),
-    ];
-  }, [fronters, nonFronters]);
+  // 🔥 FRONTERS SECOND
+  list.push({ type: "header", title: "Fronters" });
+  fronters.forEach((a) =>
+    list.push({ type: "alter", ...a })
+  );
 
+  // 🔥 OTHERS LAST
+  list.push({ type: "header", title: "Others" });
+  ungrouped.forEach((a) =>
+    list.push({ type: "alter", ...a })
+  );
+
+  return list;
+}, [folders, fronters, ungrouped]);
+
+  /* -------- REFRESH -------- */
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([reloadAlters(), reloadFrontStatus()]);
     setRefreshing(false);
   };
 
+  /* -------- RENDER -------- */
   const renderItem = useCallback(
     ({ item }: { item: ListItem }) => {
       if (item.type === "header") {
         return <Text style={styles.heading}>{item.title}</Text>;
+      }
+
+      if (item.type === "folder") {
+        return <FolderCard item={item} />;
       }
 
       const isFronting = currentFrontIds.includes(item.id);
@@ -157,32 +232,54 @@ export default function HomeScreen() {
         />
       );
     },
-    [currentFrontIds, toggleFront]
+    [currentFrontIds]
   );
 
   return (
     <Screen style={styles.screen}>
-      <Pressable
-        style={[styles.addButton, { top: insets.top + 8 }]}
-        onPress={() => router.push("/alter/new")}
-      >
-        <Ionicons name="add" size={20} color="white" />
-      </Pressable>
+      {/* BUTTONS */}
+      <View style={[styles.topButtons, { top: insets.top + 8 }]}>
+        <Pressable
+          style={styles.iconButton}
+          onPress={() => router.push("/alter/new")}
+        >
+          <Ionicons name="add" size={20} color="white" />
+        </Pressable>
+
+        <Pressable
+          style={styles.iconButton}
+          onPress={() => setCreatingFolder(true)}
+        >
+          <Ionicons name="folder" size={18} color="white" />
+        </Pressable>
+      </View>
+
+      {/* MODAL */}
+      {creatingFolder && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modal}>
+            <TextInput
+              placeholder="Folder name"
+              value={newFolderName}
+              onChangeText={setNewFolderName}
+              style={styles.input}
+            />
+
+            <Pressable style={styles.modalBtn} onPress={createFolder}>
+              <Text style={styles.modalBtnText}>Create</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       <FlatList
         data={combined}
-        keyExtractor={(item, index) =>
-          item.type === "header" ? `header-${index}` : item.id
-        }
+        keyExtractor={(item, i) => `${item.type}-${i}`}
         renderItem={renderItem}
         contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
-        initialNumToRender={8}
-        windowSize={5}
-        maxToRenderPerBatch={10}
-        removeClippedSubviews
       />
     </Screen>
   );
@@ -190,86 +287,126 @@ export default function HomeScreen() {
 
 /* ------------------ STYLES ------------------ */
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-  },
 
-  container: {
-    padding: 16,
-    paddingTop: 56,
-    paddingBottom: 40,
-  },
+  cardText: {
+  flex: 1,
+  justifyContent: "center",
+},
+  screen: { flex: 1 },
 
-  addButton: {
-    position: "absolute",
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#444",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-  },
+  container: { padding: 16, paddingTop: 56 },
 
   heading: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
-    marginTop: 8,
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+
+  folderCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#444",
+    marginBottom: 10,
+  },
+
+  folderText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 
   card: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#444",
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 10,
   },
 
   cardMain: {
     flex: 1,
     flexDirection: "row",
-    alignItems: "center",
   },
 
   avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#555",
-    marginRight: 14,
-    borderWidth: 1,
-    borderColor: "#666",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
   },
 
-  cardText: {
-    flex: 1,
-  },
+  name: { fontSize: 16, fontWeight: "600" },
 
-  name: {
-    fontSize: 18,
-    fontWeight: "600",
-  },
-
-  pronouns: {
-    opacity: 0.7,
-    marginTop: 2,
-  },
+  pronouns: { opacity: 0.6 },
 
   frontToggle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
     backgroundColor: "#444",
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 12,
   },
 
   frontActive: {
     backgroundColor: "#d14",
+  },
+
+  topButtons: {
+    position: "absolute",
+    right: 12,
+    flexDirection: "row",
+    gap: 8,
+    zIndex: 10,
+  },
+
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#444",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  modalOverlay: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  modal: {
+    width: "80%",
+    backgroundColor: "#222",
+    padding: 20,
+    borderRadius: 12,
+  },
+
+  modalBtn: {
+    backgroundColor: "#444",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+
+  modalBtnText: {
+    color: "white",
+    fontWeight: "600",
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#444",
+    padding: 10,
+    borderRadius: 10,
   },
 });

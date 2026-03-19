@@ -4,6 +4,14 @@ export type Alter = {
   pronouns?: string;
   avatar?: string;
   description?: string;
+
+  // 👇 ADD THESE
+  folder_id?: string | null;
+
+  alter_folders?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type FrontSession = {

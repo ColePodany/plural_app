@@ -90,20 +90,20 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
 
     // 🔥 get ALL front rows
     const { data: fronts, error: frontsError } = await supabase
-      .from("front_status")
-      .select(
-        `
-        user_id,
-        profile_id,
-        profiles (
-          id,
-          name,
-          icon_url
-        )
-      `
-      )
-      .in("user_id", friendIds);
-
+  .from("front_status")
+  .select(
+    `
+    user_id,
+    profile_id,
+    profiles!inner (
+      id,
+      name,
+      icon_url,
+      user_id
+    )
+  `
+  )
+  .in("user_id", friendIds);
     if (frontsError) {
       console.log("LOAD FRIEND FRONTS ERROR:", frontsError);
     }
@@ -115,10 +115,12 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
       if (!frontMap[row.user_id]) {
         frontMap[row.user_id] = [];
       }
+const profile = Array.isArray(row.profiles)
+  ? row.profiles[0]
+  : row.profiles;
 
-      const profile = Array.isArray(row.profiles)
-        ? row.profiles[0]
-        : row.profiles;
+// 🔥 extra safety check
+if (!profile || profile.user_id !== row.user_id) return;
 
       if (profile) {
         frontMap[row.user_id].push({

@@ -48,25 +48,30 @@ export function SystemProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
 
-    if (error) {
-      console.log("LOAD ALTERS ERROR:", error);
-      return;
-    }
+  const { data, error } = await supabase
+  .from("profiles")
+  .select(`
+    *,
+    alter_folders (
+      id,
+      name
+    )
+  `)
+  .eq("user_id", user.id); // ✅ THIS IS THE FIX
 
     if (data) {
-      const mapped: Alter[] = data.map((row: any) => ({
-        id: String(row.id),
-        name: row.name,
-        pronouns: row.pronouns,
-        avatar: row.icon_url,
-        description: row.description,
-      }));
+    const mapped: Alter[] = data.map((row: any) => ({
+  id: String(row.id),
+  name: row.name,
+  pronouns: row.pronouns,
+  avatar: row.icon_url,
+  description: row.description,
+
+  // ✅ ADD THESE 2 LINES
+  folder_id: row.folder_id ?? null,
+  alter_folders: row.alter_folders ?? null,
+}));
 
       setAlters(mapped);
     } else {
@@ -75,26 +80,26 @@ export function SystemProvider({ children }: { children: ReactNode }) {
   };
 
   const addAlter = async (alter: Omit<Alter, "id">) => {
-    const user = session?.user;
-    if (!user) return;
+  const user = session?.user;
+  if (!user) return;
 
-    const { error } = await supabase.from("profiles").insert([
-      {
-        user_id: user.id,
-        name: alter.name,
-        pronouns: alter.pronouns,
-        icon_url: alter.avatar,
-        description: alter.description,
-      },
-    ]);
+  const { error } = await supabase.from("profiles").insert([
+    {
+      user_id: user.id,
+      name: alter.name,
+      pronouns: alter.pronouns,
+      icon_url: alter.avatar,
+      description: alter.description,
+    },
+  ]);
 
-    if (error) {
-      console.log("ADD ALTER ERROR:", error);
-      return;
-    }
+  if (error) {
+    console.log("ADD ALTER ERROR:", error);
+    return;
+  }
 
-    await loadAlters();
-  };
+  await loadAlters();
+};
 
   const updateAlter = async (id: string, updates: Partial<Alter>) => {
     const user = session?.user;
