@@ -49,16 +49,18 @@ export function SystemProvider({ children }: { children: ReactNode }) {
     }
 
 
-  const { data, error } = await supabase
+const { data } = await supabase
   .from("profiles")
   .select(`
     *,
-    alter_folders (
-      id,
-      name
+    alter_folder_members (
+      alter_folders (
+        id,
+        name
+      )
     )
   `)
-  .eq("user_id", user.id); // ✅ THIS IS THE FIX
+  .eq("user_id", user.id); // 🔥 REQUIRED
 
     if (data) {
     const mapped: Alter[] = data.map((row: any) => ({
@@ -69,8 +71,16 @@ export function SystemProvider({ children }: { children: ReactNode }) {
   description: row.description,
 
   // ✅ ADD THESE 2 LINES
-  folder_id: row.folder_id ?? null,
-  alter_folders: row.alter_folders ?? null,
+ folders: (row.alter_folder_members || []).map((f: any) => {
+  const folder = Array.isArray(f.alter_folders)
+    ? f.alter_folders[0]
+    : f.alter_folders;
+
+  return {
+    id: String(folder.id),
+    name: folder.name,
+  };
+}),
 }));
 
       setAlters(mapped);

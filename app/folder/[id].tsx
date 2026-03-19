@@ -2,14 +2,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    FlatList,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 import Screen from "@/components/Screen";
@@ -43,25 +43,30 @@ export default function FolderScreen() {
     loadFolder();
   }, [id]);
 
-  /* -------- DATA -------- */
-  const inFolder = alters.filter((a) => a.folder_id === id);
-  const outside = alters.filter((a) => a.folder_id !== id);
+/* -------- DATA -------- */
+const inFolder = alters.filter((a) =>
+  (a.folders ?? []).some((f) => f.id === id)
+);
+
+const outside = alters.filter(
+  (a) => !(a.folders ?? []).some((f) => f.id === id)
+);
 
   /* -------- MOVE -------- */
   const addToFolder = async (alterId: string) => {
-    await supabase
-      .from("profiles")
-      .update({ folder_id: id })
-      .eq("id", alterId);
-
+ await supabase.from("alter_folder_members").insert({
+  alter_id: alterId,
+  folder_id: id,
+});
     await reloadAlters();
   };
 
   const removeFromFolder = async (alterId: string) => {
-    await supabase
-      .from("profiles")
-      .update({ folder_id: null })
-      .eq("id", alterId);
+   await supabase
+  .from("alter_folder_members")
+  .delete()
+  .eq("alter_id", alterId)
+  .eq("folder_id", id);
 
     await reloadAlters();
   };

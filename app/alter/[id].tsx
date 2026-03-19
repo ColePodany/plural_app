@@ -1,61 +1,14 @@
 import Screen from "@/components/Screen";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { supabase } from "@/lib/supabase";
 import { useSystem } from "../../contexts/SystemContext";
 
 export default function AlterDetailScreen() {
   const { id } = useLocalSearchParams();
-  const { alters, reloadAlters } = useSystem();
+  const { alters } = useSystem();
 
   const alter = alters.find((a) => String(a.id) === String(id));
-
-  const [folders, setFolders] = useState<any[]>([]);
-  const [choosingFolder, setChoosingFolder] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  /* -------- LOAD FOLDERS -------- */
-  useEffect(() => {
-    const loadFolders = async () => {
-      const { data, error } = await supabase
-        .from("alter_folders")
-        .select("*")
-        .order("created_at");
-
-      if (error) {
-        console.log("FOLDER LOAD ERROR:", error);
-      }
-
-      setFolders(data || []);
-    };
-
-    loadFolders();
-  }, []);
-
-  /* -------- MOVE TO FOLDER -------- */
-  const moveToFolder = async (folderId: string | null) => {
-    if (!alter?.id) return;
-
-    setLoading(true);
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ folder_id: folderId })
-      .eq("id", alter.id);
-
-    if (error) {
-      console.log("MOVE ERROR:", error);
-      setLoading(false);
-      return;
-    }
-
-    await reloadAlters();
-
-    setChoosingFolder(false);
-    setLoading(false);
-  };
 
   if (!alter) {
     return (
@@ -77,58 +30,39 @@ export default function AlterDetailScreen() {
           }}
           style={styles.avatar}
         />
+
         <Text style={styles.name}>{alter.name}</Text>
-        <Text style={styles.pronouns}>{alter.pronouns}</Text>
+
+        {/* ✅ Pronouns (only if exists, like Home) */}
+        {alter.pronouns ? (
+          <Text style={styles.pronouns}>{alter.pronouns}</Text>
+        ) : null}
       </View>
 
       {/* ABOUT */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>About</Text>
-        <Text>{alter.description || "No description yet."}</Text>
+        <Text style={styles.bodyText}>
+          {alter.description || "No description yet."}
+        </Text>
       </View>
 
-      {/* -------- FOLDER SECTION -------- */}
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Folder</Text>
+ {/* ✅ FOLDER DISPLAY */}
+<View style={styles.card}>
+  <Text style={styles.sectionTitle}>Folders</Text>
 
-        {/* CURRENT */}
-        <Pressable
-          style={styles.currentFolder}
-          onPress={() => setChoosingFolder((prev) => !prev)}
-        >
-          <Text>
-            {alter.alter_folders?.name || "No folder"} (tap to change)
-          </Text>
-        </Pressable>
-
-        {/* SELECTOR */}
-        {choosingFolder && (
-          <View style={{ marginTop: 12 }}>
-            <Pressable
-              style={styles.folderOption}
-              onPress={() => moveToFolder(null)}
-            >
-              <Text>No Folder</Text>
-            </Pressable>
-
-            {folders.map((folder) => (
-              <Pressable
-                key={folder.id}
-                style={styles.folderOption}
-                onPress={() => moveToFolder(folder.id)}
-              >
-                <Text>📁 {folder.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {loading && (
-          <Text style={{ marginTop: 8, opacity: 0.6 }}>
-            Updating...
-          </Text>
-        )}
-      </View>
+  {alter.folders.length > 0 ? (
+    <View style={styles.tagContainer}>
+      {alter.folders.map((folder) => (
+        <View key={folder.id} style={styles.tag}>
+          <Text style={styles.tagText}>{folder.name}</Text>
+        </View>
+      ))}
+    </View>
+  ) : (
+    <Text style={styles.bodyText}>No folders</Text>
+  )}
+</View>
 
       {/* EDIT */}
       <Pressable
@@ -142,10 +76,12 @@ export default function AlterDetailScreen() {
 }
 
 /* ------------------ STYLES ------------------ */
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     padding: 16,
+    backgroundColor: "#f7f7f7",
   },
 
   header: {
@@ -164,46 +100,40 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 28,
     fontWeight: "700",
+    color: "#111",
   },
 
   pronouns: {
     opacity: 0.7,
     marginTop: 4,
+    color: "#666",
   },
 
   card: {
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: "#e5e5e5",
     borderRadius: 14,
     padding: 16,
     marginBottom: 16,
+    backgroundColor: "#fff",
   },
 
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 8,
+    color: "#111",
   },
 
-  currentFolder: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#444",
-  },
-
-  folderOption: {
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#444",
-    marginBottom: 6,
+  bodyText: {
+    color: "#444",
+    lineHeight: 20,
   },
 
   button: {
     padding: 14,
     borderRadius: 12,
-    backgroundColor: "#444",
+    backgroundColor: "#4a90e2",
     alignItems: "center",
   },
 
@@ -211,4 +141,22 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
   },
+  tagContainer: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 8,
+},
+
+tag: {
+  backgroundColor: "#e5e5e5",
+  paddingHorizontal: 10,
+  paddingVertical: 6,
+  borderRadius: 999,
+},
+
+tagText: {
+  fontSize: 12,
+  fontWeight: "600",
+  color: "#333",
+},
 });

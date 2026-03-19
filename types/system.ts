@@ -1,17 +1,13 @@
 export type Alter = {
   id: string;
   name: string;
-  pronouns?: string;
-  avatar?: string;
-  description?: string;
-
-  // 👇 ADD THESE
-  folder_id?: string | null;
-
-  alter_folders?: {
+  pronouns: string | null;
+  avatar: string | null;
+  description: string | null;
+  folders: {
     id: string;
     name: string;
-  } | null;
+  }[];
 };
 
 export type FrontSession = {

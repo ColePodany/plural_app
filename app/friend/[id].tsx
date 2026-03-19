@@ -197,8 +197,20 @@ export default function FriendSystemScreen() {
                   Currently Fronting
                 </Text>
 
-                {frontingMembers.map((item) => (
-                  <View key={item.id} style={styles.card}>
+               {frontingMembers.map((item) => (
+  <Pressable
+    key={item.id}
+    style={styles.card}
+    onPress={() =>
+      router.push({
+        pathname: "/friend/alter/[alterId]",
+        params: {
+          alterId: item.id,
+          friendId: friendId,
+        },
+      })
+    }
+  >
                     <View style={styles.memberRow}>
                       <Image
                         source={{
@@ -217,7 +229,7 @@ export default function FriendSystemScreen() {
                         </Text>
                       </View>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </>
             )}
@@ -233,7 +245,18 @@ export default function FriendSystemScreen() {
           </Text>
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+         <Pressable
+  style={styles.card}
+  onPress={() =>
+    router.push({
+      pathname: "/friend/alter/[alterId]",
+      params: {
+        alterId: item.id,
+        friendId: friendId,
+      },
+    })
+  }
+>
             <View style={styles.memberRow}>
               <Image
                 source={{
@@ -248,7 +271,7 @@ export default function FriendSystemScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+          </Pressable>
         )}
       />
     </Screen>
