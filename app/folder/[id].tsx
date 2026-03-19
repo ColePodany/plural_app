@@ -1,10 +1,14 @@
-import { useLocalSearchParams } from "expo-router";
-import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import {
+    Alert,
     FlatList,
+    Modal,
     Pressable,
     StyleSheet,
     Text,
+    TextInput,
     View,
 } from "react-native";
 
@@ -16,124 +20,276 @@ export default function FolderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { alters, reloadAlters } = useSystem();
 
-  const [loading, setLoading] = useState(false);
+  const [folderName, setFolderName] = useState("Folder");
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [showPicker, setShowPicker] = useState(false);
 
-  /* -------- SPLIT DATA -------- */
+  /* -------- LOAD FOLDER -------- */
+  useEffect(() => {
+    const loadFolder = async () => {
+      const { data } = await supabase
+        .from("alter_folders")
+        .select("name")
+        .eq("id", id)
+        .single();
+
+      if (data) {
+        setFolderName(data.name);
+        setNewName(data.name);
+      }
+    };
+
+    loadFolder();
+  }, [id]);
+
+  /* -------- DATA -------- */
   const inFolder = alters.filter((a) => a.folder_id === id);
   const outside = alters.filter((a) => a.folder_id !== id);
 
-  /* -------- ADD TO FOLDER -------- */
+  /* -------- MOVE -------- */
   const addToFolder = async (alterId: string) => {
-    setLoading(true);
-
     await supabase
       .from("profiles")
       .update({ folder_id: id })
       .eq("id", alterId);
 
     await reloadAlters();
-    setLoading(false);
   };
 
-  /* -------- REMOVE FROM FOLDER -------- */
   const removeFromFolder = async (alterId: string) => {
-    setLoading(true);
-
     await supabase
       .from("profiles")
       .update({ folder_id: null })
       .eq("id", alterId);
 
     await reloadAlters();
-    setLoading(false);
+  };
+
+  /* -------- DELETE -------- */
+  const deleteFolder = () => {
+    Alert.alert(
+      "Delete Folder",
+      "This will NOT delete alters, just the folder.",
+      [
+        { text: "Cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await supabase
+              .from("alter_folders")
+              .delete()
+              .eq("id", id);
+
+            router.back();
+          },
+        },
+      ]
+    );
+  };
+
+  /* -------- RENAME -------- */
+  const saveName = async () => {
+    await supabase
+      .from("alter_folders")
+      .update({ name: newName })
+      .eq("id", id);
+
+    setFolderName(newName);
+    setEditing(false);
   };
 
   return (
     <Screen style={styles.screen}>
-      <Text style={styles.title}>Folder</Text>
+      {/* HEADER */}
+      <View style={styles.header}>
+        {editing ? (
+          <TextInput
+            value={newName}
+            onChangeText={setNewName}
+            style={styles.input}
+          />
+        ) : (
+          <Text style={styles.title}>📁 {folderName}</Text>
+        )}
 
-      {/* -------- IN FOLDER -------- */}
+        <View style={styles.headerButtons}>
+          <Pressable onPress={() => setEditing((e) => !e)}>
+            <Ionicons name="create-outline" size={20} />
+          </Pressable>
+
+          <Pressable onPress={saveName}>
+            <Ionicons name="checkmark" size={20} />
+          </Pressable>
+
+          <Pressable onPress={deleteFolder}>
+            <Ionicons name="trash" size={20} color="#d33" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ADD BUTTON */}
+      <Pressable
+        style={styles.addRow}
+        onPress={() => setShowPicker(true)}
+      >
+        <Ionicons name="add-circle" size={20} color="#4a90e2" />
+        <Text style={styles.addText}>Add Alters</Text>
+      </Pressable>
+
+      {/* IN FOLDER */}
       <Text style={styles.section}>In Folder</Text>
+
+      {inFolder.length === 0 && (
+        <Text style={styles.empty}>No alters here yet</Text>
+      )}
+
       <FlatList
         data={inFolder}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text>{item.name}</Text>
+          <View style={styles.card}>
+            <Text style={styles.name}>{item.name}</Text>
 
             <Pressable
               style={styles.removeBtn}
               onPress={() => removeFromFolder(item.id)}
             >
-              <Text style={styles.btnText}>Remove</Text>
+              <Ionicons name="remove" size={16} color="white" />
             </Pressable>
           </View>
         )}
       />
 
-      {/* -------- ADD TO FOLDER -------- */}
-      <Text style={styles.section}>Add Alters</Text>
-      <FlatList
-        data={outside}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.row}>
-            <Text>{item.name}</Text>
+      {/* -------- ADD MODAL -------- */}
+      <Modal visible={showPicker} animationType="slide">
+        <View style={styles.modalScreen}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add Alters</Text>
 
-            <Pressable
-              style={styles.addBtn}
-              onPress={() => addToFolder(item.id)}
-            >
-              <Text style={styles.btnText}>Add</Text>
+            <Pressable onPress={() => setShowPicker(false)}>
+              <Ionicons name="close" size={24} />
             </Pressable>
           </View>
-        )}
-      />
+
+          <FlatList
+            data={outside}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <Pressable
+                style={styles.card}
+                onPress={async () => {
+                  await addToFolder(item.id);
+                }}
+              >
+                <Text style={styles.name}>{item.name}</Text>
+
+                <Ionicons name="add" size={18} color="#4a90e2" />
+              </Pressable>
+            )}
+          />
+        </View>
+      </Modal>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 16 },
+  screen: {
+    flex: 1,
+    padding: 16,
+  },
+
+  header: {
+    marginBottom: 16,
+  },
+
+  headerButtons: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
 
   title: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: "700",
-    marginBottom: 10,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "#f9f9f9",
+  },
+
+  addRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  addText: {
+    color: "#4a90e2",
+    fontWeight: "600",
   },
 
   section: {
-    marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 8, // 🔥 FIXED spacing
     fontWeight: "600",
+    fontSize: 16,
   },
 
-  row: {
+  empty: {
+    opacity: 0.6,
+    marginBottom: 10,
+  },
+
+  card: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 12,
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#444",
-    borderRadius: 10,
-    marginBottom: 8,
+    borderColor: "#e5e5e5",
+    backgroundColor: "#fff",
+    marginBottom: 10,
   },
 
-  addBtn: {
-    backgroundColor: "#2e7d32",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+  name: {
+    fontSize: 16,
+    fontWeight: "500",
   },
 
   removeBtn: {
-    backgroundColor: "#a33",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: "#d33",
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  btnText: {
-    color: "white",
-    fontWeight: "600",
+  /* -------- MODAL -------- */
+
+  modalScreen: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: "#fff",
+  },
+
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
   },
 });

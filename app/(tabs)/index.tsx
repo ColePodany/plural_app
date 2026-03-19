@@ -125,9 +125,16 @@ const [folders, setFolders] = useState<any[]>([]);
 
 useEffect(() => {
   const loadFolders = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
     const { data, error } = await supabase
       .from("alter_folders")
       .select("*")
+      .eq("user_id", user.id) // ✅ ONLY YOUR FOLDERS
       .order("created_at");
 
     if (error) {
@@ -143,28 +150,34 @@ useEffect(() => {
 
   /* -------- CREATE FOLDER -------- */
   const createFolder = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    await supabase.from("alter_folders").insert({
-      name: newFolderName,
-      user_id: user?.id,
-    });
+  if (!user) return;
+
+  const { error } = await supabase.from("alter_folders").insert({
+    name: newFolderName,
+    user_id: user.id,
+  });
+
+  if (error) {
+    console.log("CREATE FOLDER ERROR:", error);
+    return;
+  }
 
   setCreatingFolder(false);
-setNewFolderName("");
+  setNewFolderName("");
 
-await reloadAlters();
+  // ✅ reload folders properly
+  const { data } = await supabase
+    .from("alter_folders")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at");
 
-// 🔥 reload folders immediately
-const { data } = await supabase
-  .from("alter_folders")
-  .select("*")
-  .order("created_at");
-
-setFolders(data || []);
-  };
+  setFolders(data || []);
+};
 
   /* -------- DATA SPLIT -------- */
   const fronters = useMemo(
@@ -205,11 +218,27 @@ const ungrouped = alters.filter(
 }, [folders, fronters, ungrouped]);
 
   /* -------- REFRESH -------- */
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([reloadAlters(), reloadFrontStatus()]);
-    setRefreshing(false);
-  };
+ const handleRefresh = async () => {
+  setRefreshing(true);
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data } = await supabase
+      .from("alter_folders")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at");
+
+    setFolders(data || []);
+  }
+
+  await Promise.all([reloadAlters(), reloadFrontStatus()]);
+
+  setRefreshing(false);
+};
 
   /* -------- RENDER -------- */
   const renderItem = useCallback(
@@ -374,39 +403,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  modalOverlay: {
-    position: "absolute",
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
+modalOverlay: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
 
-  modal: {
-    width: "80%",
-    backgroundColor: "#222",
-    padding: 20,
-    borderRadius: 12,
-  },
+  backgroundColor: "rgba(0,0,0,0.4)",
 
-  modalBtn: {
-    backgroundColor: "#444",
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 10,
-  },
+  justifyContent: "center",
+  alignItems: "center",
+
+  zIndex: 999,        // 🔥 IMPORTANT
+  elevation: 999,     // 🔥 ANDROID FIX
+},
+
+modal: {
+  width: "80%",
+  backgroundColor: "#fff", // 🔥 LIGHT
+  padding: 20,
+  borderRadius: 12,
+},
+
+ modalBtn: {
+  backgroundColor: "#4a90e2",
+  padding: 12,
+  borderRadius: 10,
+  alignItems: "center",
+  marginTop: 10,
+},
 
   modalBtnText: {
-    color: "white",
-    fontWeight: "600",
-  },
+  color: "white",
+  fontWeight: "600",
+},
 
-  input: {
-    borderWidth: 1,
-    borderColor: "#444",
-    padding: 10,
-    borderRadius: 10,
-  },
+ input: {
+  borderWidth: 1,
+  borderColor: "#ddd",
+  padding: 10,
+  borderRadius: 10,
+  backgroundColor: "#f9f9f9",
+},
 });
