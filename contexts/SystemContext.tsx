@@ -81,6 +81,8 @@ const { data } = await supabase
     name: folder.name,
   };
 }),
+
+customFields: row.custom_fields ?? [],
 }));
 
       setAlters(mapped);
@@ -115,16 +117,19 @@ const { data } = await supabase
     const user = session?.user;
     if (!user) return;
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        name: updates.name,
-        pronouns: updates.pronouns,
-        icon_url: updates.avatar,
-        description: updates.description,
-      })
-      .eq("id", id)
-      .eq("user_id", user.id);
+  const { error } = await supabase
+  .from("profiles")
+  .update({
+    name: updates.name,
+    pronouns: updates.pronouns,
+    icon_url: updates.avatar,
+    description: updates.description,
+
+    // 🔥 ADD THIS
+    custom_fields: updates.customFields,
+  })
+  .eq("id", id)
+  .eq("user_id", user.id);
 
     if (error) {
       console.log("UPDATE ALTER ERROR:", error);

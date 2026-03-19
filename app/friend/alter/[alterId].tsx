@@ -14,7 +14,7 @@ export default function FriendAlterScreen() {
     const loadAlter = async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, name, pronouns, description, icon_url")
+.select("id, name, pronouns, description, icon_url, custom_fields")
         .eq("id", alterId)
         .maybeSingle();
 
@@ -64,15 +64,31 @@ export default function FriendAlterScreen() {
         )}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <Text style={styles.bodyText}>
-          {alter.description || "No description."}
-        </Text>
-      </View>
+   {/* ABOUT */}
+<View style={styles.card}>
+  <Text style={styles.sectionTitle}>About</Text>
+  <Text style={styles.bodyText}>
+    {alter.description || "No description."}
+  </Text>
+</View>
+
+{/* CUSTOM FIELDS */}
+{(alter.custom_fields ?? []).map((field: any, index: number) => (
+  <View key={index} style={styles.card}>
+    <Text style={styles.sectionTitle}>{field.label}</Text>
+    <Text style={styles.bodyText}>
+      {field.value || "No value"}
+    </Text>
+  </View>
+))}
+
     </Screen>
   );
+
+  
 }
+
+
 
 const styles = StyleSheet.create({
   screen: {

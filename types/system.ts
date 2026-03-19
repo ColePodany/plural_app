@@ -4,9 +4,15 @@ export type Alter = {
   pronouns: string | null;
   avatar: string | null;
   description: string | null;
+
   folders: {
     id: string;
     name: string;
+  }[];
+
+  customFields: {
+    label: string;
+    value: string;
   }[];
 };
 

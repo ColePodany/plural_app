@@ -47,6 +47,16 @@ export default function AlterDetailScreen() {
         </Text>
       </View>
 
+      {/* -------- CUSTOM FIELDS -------- */}
+{(alter.customFields ?? []).map((field, index) => (
+  <View key={index} style={styles.card}>
+    <Text style={styles.sectionTitle}>{field.label}</Text>
+    <Text style={styles.bodyText}>
+      {field.value || "No value"}
+    </Text>
+  </View>
+))}
+
  {/* ✅ FOLDER DISPLAY */}
 <View style={styles.card}>
   <Text style={styles.sectionTitle}>Folders</Text>
@@ -158,5 +168,19 @@ tagText: {
   fontSize: 12,
   fontWeight: "600",
   color: "#333",
+},
+fieldRow: {
+  marginBottom: 10,
+},
+
+fieldLabel: {
+  fontSize: 13,
+  fontWeight: "600",
+  color: "#888",
+},
+
+fieldValue: {
+  fontSize: 16,
+  color: "#111",
 },
 });
