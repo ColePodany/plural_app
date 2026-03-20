@@ -28,12 +28,15 @@ export default function NewAlterScreen() {
   const handleSave = async () => {
     if (!name.trim()) return;
 
-    await addAlter({
-      name: name.trim(),
-      pronouns: pronouns.trim(),
-      avatar: avatar.trim(),
-      description: description.trim(),
-    });
+   await addAlter({
+  name: name.trim(),
+  pronouns: pronouns.trim() || null,
+  avatar: avatar.trim() || null,
+  description: description.trim() || null,
+
+  folders: [],          // ✅ REQUIRED
+  customFields: [],     // ✅ REQUIRED
+});
 
     router.back();
   };

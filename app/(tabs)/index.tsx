@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import Screen from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
+import { useFocusEffect } from "expo-router";
 import { useSystem } from "../../contexts/SystemContext";
 
 /* ------------------ TYPES ------------------ */
@@ -22,6 +23,7 @@ type FolderItem = {
   type: "folder";
   id: string;
   name: string;
+  emoji?: string; 
 };
 
 type AlterItem = {
@@ -94,14 +96,17 @@ const AlterCard = ({
 const FolderCard = ({ item }: { item: FolderItem }) => (
   <Pressable
     style={styles.folderCard}
-   onPress={() =>
-  router.push({
-    pathname: "/folder/[id]",
-    params: { id: item.id },
-  })
-}
+    onPress={() =>
+      router.push({
+        pathname: "/folder/[id]",
+        params: { id: item.id },
+      })
+    }
   >
-    <Ionicons name="folder" size={20} color="#aaa" />
+<Text style={{ fontSize: 20, marginRight: 4 }}>
+        {item.emoji || "📁"}
+    </Text>
+
     <Text style={styles.folderText}>{item.name}</Text>
   </Pressable>
 );
@@ -123,30 +128,32 @@ export default function HomeScreen() {
   const [newFolderName, setNewFolderName] = useState("");
 const [folders, setFolders] = useState<any[]>([]);
 
-useEffect(() => {
-  const loadFolders = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+useFocusEffect(
+  useCallback(() => {
+    const loadFolders = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) return;
+      if (!user) return;
 
-    const { data, error } = await supabase
-      .from("alter_folders")
-      .select("*")
-      .eq("user_id", user.id) // ✅ ONLY YOUR FOLDERS
-      .order("created_at");
+      const { data, error } = await supabase
+        .from("alter_folders")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at");
 
-    if (error) {
-      console.log("LOAD FOLDERS ERROR:", error);
-      return;
-    }
+      if (error) {
+        console.log("LOAD FOLDERS ERROR:", error);
+        return;
+      }
 
-    setFolders(data || []);
-  };
+      setFolders(data || []);
+    };
 
-  loadFolders();
-}, []);
+    loadFolders();
+  }, [])
+);
 
   /* -------- CREATE FOLDER -------- */
   const createFolder = async () => {
@@ -199,21 +206,33 @@ const ungrouped = alters.filter(
       type: "folder",
       id: f.id,
       name: f.name,
+          emoji: f.emoji,
     })
   );
 
   // 🔥 FRONTERS SECOND
   list.push({ type: "header", title: "Fronters" });
-  fronters.forEach((a) =>
-    list.push({ type: "alter", ...a })
-  );
+ fronters.forEach((a) =>
+  list.push({
+    type: "alter",
+    id: a.id,
+    name: a.name,
+    pronouns: a.pronouns ?? undefined,
+    avatar: a.avatar ?? undefined,
+  })
+);
 
   // 🔥 OTHERS LAST
   list.push({ type: "header", title: "Others" });
   ungrouped.forEach((a) =>
-    list.push({ type: "alter", ...a })
-  );
-
+  list.push({
+    type: "alter",
+    id: a.id,
+    name: a.name,
+    pronouns: a.pronouns ?? undefined,
+    avatar: a.avatar ?? undefined,
+  })
+);
   return list;
 }, [folders, fronters, ungrouped]);
 

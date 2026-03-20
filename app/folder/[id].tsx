@@ -14,6 +14,7 @@ import {
 
 import Screen from "@/components/Screen";
 import { supabase } from "@/lib/supabase";
+import { Image } from "react-native";
 import { useSystem } from "../../contexts/SystemContext";
 
 export default function FolderScreen() {
@@ -24,20 +25,22 @@ export default function FolderScreen() {
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState("");
   const [showPicker, setShowPicker] = useState(false);
+  const [emoji, setEmoji] = useState("📁");
 
   /* -------- LOAD FOLDER -------- */
   useEffect(() => {
     const loadFolder = async () => {
       const { data } = await supabase
         .from("alter_folders")
-        .select("name")
+.select("name, emoji")
         .eq("id", id)
         .single();
 
-      if (data) {
-        setFolderName(data.name);
-        setNewName(data.name);
-      }
+   if (data) {
+  setFolderName(data.name);
+  setNewName(data.name);
+  setEmoji(data.emoji || "📁");
+}
     };
 
     loadFolder();
@@ -98,7 +101,7 @@ const outside = alters.filter(
   const saveName = async () => {
     await supabase
       .from("alter_folders")
-      .update({ name: newName })
+.update({ name: newName, emoji })
       .eq("id", id);
 
     setFolderName(newName);
@@ -108,40 +111,53 @@ const outside = alters.filter(
   return (
     <Screen style={styles.screen}>
       {/* HEADER */}
-      <View style={styles.header}>
-        {editing ? (
-          <TextInput
-            value={newName}
-            onChangeText={setNewName}
-            style={styles.input}
-          />
-        ) : (
-          <Text style={styles.title}>📁 {folderName}</Text>
-        )}
+     <View style={styles.header}>
+  <View style={styles.headerTop}>
+   <TextInput
+  value={emoji}
+  onChangeText={async (val) => {
+    setEmoji(val);
 
-        <View style={styles.headerButtons}>
-          <Pressable onPress={() => setEditing((e) => !e)}>
-            <Ionicons name="create-outline" size={20} />
-          </Pressable>
+    await supabase
+      .from("alter_folders")
+      .update({ emoji: val })
+      .eq("id", id);
+  }}
+  style={styles.emojiInput}
+  maxLength={2}
+/>
 
-          <Pressable onPress={saveName}>
-            <Ionicons name="checkmark" size={20} />
-          </Pressable>
+    {editing ? (
+      <TextInput
+        value={newName}
+        onChangeText={setNewName}
+        style={styles.input}
+      />
+    ) : (
+      <Text style={styles.title}>{folderName}</Text>
+    )}
+  </View>
 
-          <Pressable onPress={deleteFolder}>
-            <Ionicons name="trash" size={20} color="#d33" />
-          </Pressable>
-        </View>
-      </View>
+  <View style={styles.headerButtons}>
+    <Pressable onPress={() => setEditing((e) => !e)}>
+      <Ionicons name="create-outline" size={20} />
+    </Pressable>
 
-      {/* ADD BUTTON */}
-      <Pressable
-        style={styles.addRow}
-        onPress={() => setShowPicker(true)}
-      >
-        <Ionicons name="add-circle" size={20} color="#4a90e2" />
-        <Text style={styles.addText}>Add Alters</Text>
-      </Pressable>
+    <Pressable onPress={saveName}>
+      <Ionicons name="checkmark" size={20} />
+    </Pressable>
+
+    <Pressable onPress={deleteFolder}>
+      <Ionicons name="trash" size={20} color="#d33" />
+    </Pressable>
+
+    <Pressable onPress={() => setShowPicker(true)}>
+  <Ionicons name="add-circle-outline" size={22} color="#4a90e2" />
+</Pressable>
+  </View>
+</View>
+
+  
 
       {/* IN FOLDER */}
       <Text style={styles.section}>In Folder</Text>
@@ -150,22 +166,29 @@ const outside = alters.filter(
         <Text style={styles.empty}>No alters here yet</Text>
       )}
 
-      <FlatList
-        data={inFolder}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <Text style={styles.name}>{item.name}</Text>
+    <FlatList
+  data={inFolder}
+  keyExtractor={(item) => item.id}
+  renderItem={({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.rowLeft}>
+        <Image
+          source={{ uri: item.avatar || "https://placehold.co/100" }}
+          style={styles.avatar}
+        />
+        <Text style={styles.name}>{item.name}</Text>
+      </View>
 
-            <Pressable
-              style={styles.removeBtn}
-              onPress={() => removeFromFolder(item.id)}
-            >
-              <Ionicons name="remove" size={16} color="white" />
-            </Pressable>
-          </View>
-        )}
-      />
+      <Pressable
+        style={styles.removeBtn}
+        onPress={() => removeFromFolder(item.id)}
+      >
+        <Ionicons name="remove" size={16} color="white" />
+      </Pressable>
+    </View>
+  )}
+/>
+
 
       {/* -------- ADD MODAL -------- */}
       <Modal visible={showPicker} animationType="slide">
@@ -188,7 +211,13 @@ const outside = alters.filter(
                   await addToFolder(item.id);
                 }}
               >
-                <Text style={styles.name}>{item.name}</Text>
+               <View style={styles.rowLeft}>
+  <Image
+    source={{ uri: item.avatar || "https://placehold.co/100" }}
+    style={styles.avatar}
+  />
+  <Text style={styles.name}>{item.name}</Text>
+</View>
 
                 <Ionicons name="add" size={18} color="#4a90e2" />
               </Pressable>
@@ -252,17 +281,21 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  card: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#e5e5e5",
-    backgroundColor: "#fff",
-    marginBottom: 10,
-  },
+card: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: 14,
+  borderRadius: 16,
+  backgroundColor: "#fff",
+  marginBottom: 10,
+
+  shadowColor: "#000",
+  shadowOpacity: 0.05,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 2 },
+  elevation: 2,
+},
 
   name: {
     fontSize: 16,
@@ -297,4 +330,44 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
+  headerTop: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 8,
+  marginBottom: 8,
+},
+
+emojiInput: {
+  fontSize: 28,
+  width: 40,
+  textAlign: "center",
+},
+
+addButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "#4a90e2",
+  padding: 12,
+  borderRadius: 12,
+  marginBottom: 16,
+},
+
+addButtonText: {
+  color: "white",
+  fontWeight: "600",
+  marginLeft: 6,
+},
+rowLeft: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
+
+avatar: {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: "#ddd",
+},
 });

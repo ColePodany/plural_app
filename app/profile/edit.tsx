@@ -8,6 +8,15 @@ import { useProfile } from "../../contexts/ProfileContext";
 
 export default function EditProfileScreen() {
   const { profile, updateProfile } = useProfile();
+  if (!profile) {
+  return (
+    <Screen style={styles.screen}>
+      <Text style={{ textAlign: "center", marginTop: 40, opacity: 0.6 }}>
+        Loading profile...
+      </Text>
+    </Screen>
+  );
+}
 
   const [displayName, setDisplayName] = useState(profile.displayName ?? "");
   const [username, setUsername] = useState(profile.username ?? "");
