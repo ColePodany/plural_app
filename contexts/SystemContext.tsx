@@ -4,7 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useState
 } from "react";
 import { sendPush } from "../lib/sendPush";
 import { supabase } from "../lib/supabase";
@@ -137,7 +137,11 @@ customFields: row.custom_fields ?? [],
     }
 
     await loadAlters();
-    await loadHistory();
+    const end = new Date();
+const start = new Date(end);
+start.setDate(start.getDate() - 1);
+
+await loadHistoryRange(start, end);
   };
 
   const deleteAlter = async (id: string) => {
@@ -157,7 +161,11 @@ customFields: row.custom_fields ?? [],
 
     await loadAlters();
     await loadFrontStatus();
-    await loadHistory();
+    const end = new Date();
+const start = new Date(end);
+start.setDate(start.getDate() - 1);
+
+await loadHistoryRange(start, end);
   };
 
   const updateFrontStatus = async (profileId: string | null) => {
@@ -418,6 +426,13 @@ const displayName =
           sendPush(token, "Front Update", message);
         });
 
+        // 🔥 refresh history instantly
+const end = new Date();
+const start = new Date(end);
+start.setDate(start.getDate() - 1);
+
+await loadHistoryRange(start, end);
+
       } catch (err) {
         console.log("❌ TOGGLE FRONT ERROR:", err);
       }
@@ -427,75 +442,74 @@ const displayName =
   });
 };
 
-  const loadHistory = async () => {
-    const user = session?.user;
-    if (!user) {
-      setHistory([]);
-      return;
-    }
+const loadHistoryRange = async (startDate: Date, endDate: Date) => {
+  const user = session?.user;
+  if (!user) {
+    setHistory([]);
+    return;
+  }
 
-    const { data, error } = await supabase
-      .from("front_history")
-      .select(
-        `
-        id,
-        profile_id,
-        start_time,
-        end_time,
-        profiles (
-          id,
-          name,
-          icon_url
-        )
-      `
-      )
-      .eq("user_id", user.id)
-      .order("start_time", { ascending: false });
+  const { data, error } = await supabase
+    .from("front_history")
+    .select(`
+      id,
+      profile_id,
+      start_time,
+      end_time
+    `)
+    .eq("user_id", user.id)
+    .gte("start_time", startDate.toISOString())
+    .lte("start_time", endDate.toISOString())
+    .order("start_time", { ascending: false });
 
-    if (error) {
-      console.log("LOAD HISTORY ERROR:", error);
-      return;
-    }
+  if (error) {
+    console.log("LOAD HISTORY RANGE ERROR:", error);
+    return;
+  }
 
-    if (data) {
-      const mapped: FrontSession[] = data.map((row: any) => {
-        const profile = Array.isArray(row.profiles)
-          ? row.profiles[0]
-          : row.profiles;
+  // 🔥 use local alters instead of JOIN (fixes your bugs)
+  const alterMap = Object.fromEntries(
+    alters.map((a) => [a.id, a])
+  );
 
-        return {
-          id: String(row.id),
-          alterId: String(row.profile_id),
-          name: profile?.name ?? "Unknown",
-          avatar: profile?.icon_url ?? null,
-          start: row.start_time,
-          end: row.end_time,
-          date: new Date(row.start_time).toDateString(),
-        };
-      });
+  const mapped: FrontSession[] = (data || []).map((row: any) => ({
+    id: String(row.id),
+    alterId: String(row.profile_id),
+    name: alterMap[row.profile_id]?.name ?? "Unknown",
+    avatar: alterMap[row.profile_id]?.avatar ?? null,
+    start: row.start_time,
+    end: row.end_time,
+    date: new Date(row.start_time).toDateString(),
+  }));
 
-      setHistory(mapped);
-    } else {
-      setHistory([]);
-    }
+  setHistory(mapped);
+};
+
+useEffect(() => {
+  if (loading) return;
+
+  if (!session?.user) {
+    setAlters([]);
+    setCurrentFrontIds([]);
+    setHistory([]);
+    return;
+  }
+
+  const init = async () => {
+    await loadAlters();
+    await loadFrontStatus();
+
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 1);
+
+    await loadHistoryRange(start, end);
   };
 
-  useEffect(() => {
-    if (loading) return;
+  init();
+}, [session, loading]);
 
-    if (!session?.user) {
-      setAlters([]);
-      setCurrentFrontIds([]);
-      setHistory([]);
-      return;
-    }
-
-    void loadAlters();
-    void loadFrontStatus();
-    void loadHistory();
-  }, [session, loading]);
-
- const value = useMemo(
+const value = useMemo(
   () => ({
     alters,
     currentFrontIds,
@@ -508,7 +522,7 @@ const displayName =
     removeFromFront,
     updateFrontStatus,
     reloadAlters: loadAlters,
-    reloadHistory: loadHistory,
+    reloadHistoryRange: loadHistoryRange,
     reloadFrontStatus: loadFrontStatus,
   }),
   [alters, currentFrontIds, history]

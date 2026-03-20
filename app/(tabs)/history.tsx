@@ -1,115 +1,187 @@
+import { FlashList } from "@shopify/flash-list";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo } from "react";
-import { FlatList, Image, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Image, StyleSheet, Text, View } from "react-native";
 
 import Screen from "@/components/Screen";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   formatDuration,
   formatTime,
   useSystem,
 } from "../../contexts/SystemContext";
 
+/* -------- MEMOIZED ROW -------- */
+const HistoryItem = React.memo(({ item }: any) => {
+  if (item.type === "header") {
+    return <Text style={styles.dayTitle}>{item.date}</Text>;
+  }
+
+  const name = item.name ?? "Unknown Alter";
+  const avatar = item.avatar || "https://placehold.co/100";
+
+  return (
+    <View style={styles.card}>
+      <Image source={{ uri: avatar }} style={styles.avatar} />
+
+      <View style={styles.cardText}>
+        <Text style={styles.name}>{name}</Text>
+
+        {item.allDay ? (
+          <Text style={styles.subtext}>Fronted all day</Text>
+        ) : item.end ? (
+          <>
+            <Text style={styles.subtext}>
+              Fronted {formatDuration(item.start, item.end)}
+            </Text>
+            <Text style={styles.subtext}>
+              from {formatTime(item.start)} to{" "}
+              {formatTime(item.end)}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.subtext}>Currently fronting</Text>
+            <Text style={styles.subtext}>
+              since {formatTime(item.start)}
+            </Text>
+          </>
+        )}
+      </View>
+    </View>
+  );
+});
+
 export default function HistoryScreen() {
-  const { history, reloadHistory, reloadAlters } = useSystem();
+  const { history, reloadHistoryRange, reloadAlters } = useSystem();
 
-  useFocusEffect(
-    useCallback(() => {
-      reloadHistory();
-      reloadAlters();
-    }, [reloadHistory, reloadAlters])
-  );
+const [startDate, setStartDate] = useState(() => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d;
+});
 
- const groupedHistory = useMemo(() => {
-  // 🔥 1. SORT BY MOST RECENT ACTIVITY
-  const sorted = [...history].sort(
-    (a, b) =>
-      new Date(b.end ?? b.start).getTime() -
-      new Date(a.end ?? a.start).getTime()
-  );
+const [endDate, setEndDate] = useState(new Date());
 
-  // 🔥 2. GROUP BY DATE
-  const grouped = sorted.reduce((acc, entry) => {
-    const existingDay = acc.find((day) => day.date === entry.date);
+const [pickerMode, setPickerMode] = useState<"start" | "end" | null>(null);
 
-    if (existingDay) {
-      existingDay.entries.push(entry);
-    } else {
-      acc.push({
-        date: entry.date,
-        entries: [entry],
-      });
-    }
 
-    return acc;
-  }, [] as { date: string; entries: typeof history }[]);
+const getRange = () => {
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
 
-  // 🔥 3. SORT INSIDE EACH DAY (same logic)
-  grouped.forEach((day) => {
-    day.entries.sort(
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+};
+
+useFocusEffect(
+  useCallback(() => {
+    const load = async () => {
+      const { start, end } = getRange();
+      await reloadAlters();
+      await reloadHistoryRange(start, end);
+    };
+
+    load();
+  }, [startDate, endDate])
+);
+
+  /* -------- LABEL -------- */
+  const { start, end } = getRange();
+  const label = `${start.toDateString()} → ${end.toDateString()}`;
+
+  /* -------- FLATTEN -------- */
+  const flatData = useMemo(() => {
+    const sorted = [...history].sort(
       (a, b) =>
         new Date(b.end ?? b.start).getTime() -
         new Date(a.end ?? a.start).getTime()
     );
-  });
 
-  return grouped;
-}, [history]);
+    const result: any[] = [];
+    let currentDate = "";
+
+    for (const entry of sorted) {
+      if (entry.date !== currentDate) {
+        currentDate = entry.date;
+        result.push({ type: "header", date: currentDate });
+      }
+
+      result.push({ type: "entry", ...entry });
+    }
+
+    return result;
+  }, [history]);
+
+  const renderItem = useCallback(({ item }: any) => {
+    return <HistoryItem item={item} />;
+  }, []);
 
   return (
     <Screen style={styles.screen}>
       <Text style={styles.title}>History</Text>
 
-      <FlatList
-        data={groupedHistory}
-        keyExtractor={(item) => item.date}
-        contentContainerStyle={styles.listContent}
+
+
+      <View style={styles.navRow}>
+  <Text onPress={() => setPickerMode("start")}>
+    {startDate.toDateString()}
+  </Text>
+
+  <Text> → </Text>
+
+  <Text onPress={() => setPickerMode("end")}>
+    {endDate.toDateString()}
+  </Text>
+</View>
+
+{pickerMode && (
+  <DateTimePicker
+    value={pickerMode === "start" ? startDate : endDate}
+    mode="date"
+    display="calendar"
+    onChange={(event, date) => {
+      if (event.type === "dismissed") {
+        setPickerMode(null);
+        return;
+      }
+
+      if (date) {
+        if (pickerMode === "start") {
+          setStartDate(date);
+
+          // prevent invalid range
+          if (date > endDate) setEndDate(date);
+        } else {
+          setEndDate(date);
+
+          if (date < startDate) setStartDate(date);
+        }
+      }
+
+      setPickerMode(null);
+    }}
+  />
+)}
+
+
+      <FlashList
+        data={flatData}
+        renderItem={renderItem}
+        keyExtractor={(item) =>
+          item.type === "header" ? item.date : item.id
+        }
         ListEmptyComponent={
           <Text style={styles.emptyText}>No front history yet.</Text>
         }
-        renderItem={({ item }) => (
-          <View style={styles.daySection}>
-            <Text style={styles.dayTitle}>{item.date}</Text>
-
-            {item.entries.map((entry) => {
-              const name = entry.name ?? "Unknown Alter";
-              const avatar = entry.avatar || "https://placehold.co/100";
-
-              return (
-                <View key={entry.id} style={styles.card}>
-                  <Image source={{ uri: avatar }} style={styles.avatar} />
-
-                  <View style={styles.cardText}>
-                    <Text style={styles.name}>{name}</Text>
-
-                    {entry.allDay ? (
-                      <Text style={styles.subtext}>Fronted all day</Text>
-                    ) : entry.end ? (
-                      <>
-                        <Text style={styles.subtext}>
-                          Fronted {formatDuration(entry.start, entry.end)}
-                        </Text>
-                        <Text style={styles.subtext}>
-                          from {formatTime(entry.start)} to {formatTime(entry.end)}
-                        </Text>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.subtext}>Currently fronting</Text>
-                        <Text style={styles.subtext}>
-                          since {formatTime(entry.start)}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
       />
     </Screen>
   );
 }
+
+/* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
   screen: {
@@ -121,20 +193,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 16,
   },
-  listContent: {
-    paddingBottom: 24,
+  navRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 12,
   },
   emptyText: {
     opacity: 0.7,
     marginTop: 12,
-  },
-  daySection: {
-    marginBottom: 20,
+    textAlign: "center",
   },
   dayTitle: {
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 10,
+    marginTop: 10,
   },
   card: {
     borderWidth: 1,
@@ -164,4 +237,9 @@ const styles = StyleSheet.create({
     opacity: 0.75,
     marginTop: 2,
   },
+  presetRow: {
+  flexDirection: "row",
+  justifyContent: "space-around",
+  marginBottom: 10,
+},
 });

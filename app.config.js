@@ -15,7 +15,7 @@ export default {
 
     android: {
       package: "com.colepodany.pluraltest",
-      googleServicesFile: "./google-services.json", // ✅ KEEP THIS
+      googleServicesFile: "./google-services.json",
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
         foregroundImage: "./assets/images/android-icon-foreground.png",
@@ -30,8 +30,10 @@ export default {
     plugins: [
       "expo-router",
 
-      // 🔥 THIS IS THE CRITICAL FIX
       "expo-notifications",
+
+      // ✅ ADD THIS LINE
+      "@react-native-community/datetimepicker",
 
       [
         "expo-splash-screen",
